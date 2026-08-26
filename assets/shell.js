@@ -16,7 +16,7 @@
     { id: 'dokumenty',    href: 'dokumenty.html',    icon: 'file',           title: 'Документы' },
     { id: 'loyalnost',    href: 'loyalnost.html',    icon: 'card',           title: 'Лояльность' },
     { id: 'profil',       href: 'profil.html',       icon: 'user',           title: 'Профиль' },
-    { id: 'vhod',         href: 'vhod.html',         icon: 'logout',         title: 'Выйти' }
+    { id: 'vhod',         href: 'index.html',        icon: 'logout',         title: 'Выйти' }
   ];
 
   /* Реестр действий. Экран регистрирует свои через Shell.on(act, fn);
@@ -123,7 +123,7 @@
         '<span class="shell-header__who" id="shell-who">Пациент</span>' +
         '<div class="pills" role="group" aria-labelledby="shell-who">' + pills + '</div>' +
         '<span class="shell-header__divider"></span>' +
-        '<a class="btn btn--secondary btn--sm" href="vhod.html">' + icon('logout') + 'Выйти</a>' +
+        '<a class="btn btn--secondary btn--sm" href="index.html">' + icon('logout') + 'Выйти</a>' +
       '</header>');
   }
 
@@ -135,7 +135,7 @@
   }
 
   /* Ссылку на прототип пересылают дальше, и коллега открывает конкретный
-     экран, минуя обложку с объяснением. Значок замечания на экране молчит —
+     экран, минуя вход с объяснением. Значок замечания на экране молчит —
      у него только title и aria-label. Строка над содержимым называет механизм
      словами и стоит на каждом экране каркаса; подписи на самой кнопке нет
      намеренно: с ней обвязка разрасталась и накрывала колонку.
@@ -146,12 +146,11 @@
 
      Слово «прототип» из неё убирать нельзя: другой пометки на экранах каркаса
      нет, а ссылку пересылают дальше — коллега открывает smeta.html, минуя
-     обложку, и должен видеть, что кабинет не рабочий. Прибор это проверяет
+     вход, и должен видеть, что кабинет не рабочий. Прибор это проверяет
      на каждом экране (check_page).
 
      Цвет, форму, место и действие строка называет теми же словами, что окно
-     замечаний, пустая панель и обложка; расхождение прибор ловит
-     (check_remark_phrase). */
+     «Замечаний пока нет»; расхождение прибор ловит (check_remark_phrase). */
   function hint() {
     return el('<p class="shell-hint">Прототип. Замечание — ' +
       'белый значок с облачком справа внизу.</p>');
@@ -340,7 +339,7 @@
     Shell.on('remark', function () { remarkDialog(); });
     Shell.on('remark-save', function () { saveRemark(); });
     Shell.on('copy-remarks', function () { copyRemarks(); });
-    Shell.on('reset', function () { w.Store.reset(); w.location.href = 'vhod.html'; });
+    Shell.on('reset', function () { w.Store.reset(); w.location.href = 'index.html'; });
     /* Отмену записи заказчик пробует из любопытства — вернуть её должно быть
        дешевле, чем полным сбросом. Ключи отмен заводит экран, знает о них панель. */
     Shell.on('restore-cancels', function () {
@@ -426,7 +425,7 @@
      на 1440 кнопка строки расходилась с обвязкой на 9 px, а проверка стояла
      на двух высотах окна из бесконечного числа. Полосу под обвязку колонка
      оставляет в CSS (--dock-lane), здесь — сверка. */
-  var COLUMNS = '.page, .pro-wrap';
+  var COLUMNS = '.page';
 
   /** Заходит ли плавающая обвязка в колонку содержимого. Пустая строка — нет. */
   /* Шапка и каркас живут в одной ширине. Выше --page-max содержимое

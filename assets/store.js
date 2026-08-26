@@ -53,7 +53,7 @@
 
   var state = read();
 
-  /* Сценарий и человека можно задать адресом: vhod.html?scenario=after&person=child.
+  /* Сценарий и человека можно задать адресом: index.html?scenario=after&person=child.
      Этим пользуется tools/check.py и ссылки вида «открыть запись у этого врача». */
   (function fromUrl() {
     var q = w.location.search;

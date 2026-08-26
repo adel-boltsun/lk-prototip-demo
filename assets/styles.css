@@ -52,7 +52,6 @@
   --draft:        #F8D666; /* loyalnost: метка «черновик, с клиникой не согласовано» */
 
   /* --- Кегль. Источник: измеренная cap-height в макетах --------------- */
-  --fs-logo:    3.125rem;  /* 50px — «ФАКТ» на входе, cap 36,5 */
   --fs-display: 2.75rem;   /* 44px — «27 августа», cap 31,5 */
   --fs-h1:      2.5rem;    /* 40px — заголовок экрана, cap 29,5–30,5 */
   --fs-time:    2rem;      /* 32px — «11:40», cap 22,5 */
@@ -101,7 +100,7 @@
      иначе логотип и пилюли уезжают к краям экрана от своей же колонки.
      Видно при уменьшении масштаба: это то же самое, что широкий монитор. */
   --shell-max: calc(var(--page-max) + var(--sidebar-w));
-  --login-side: 720px; /* тёмная панель входа при 1920; ниже ужимается вместе с формой */
+  --login-side: 720px; /* основа половины входа: обе колонки берут её и ужимаются вместе */
 
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
           Arial, "Noto Sans", sans-serif;
@@ -390,6 +389,7 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
    знаке. Высота 44 из 76 шапки — близко к натуральной для файла 270×90. */
 .brand__logo { display: block; height: 44px; width: auto; }
 .brand__logo--lg { height: 56px; }
+.brand__logo--xl { height: 72px; }
 .shell-header__divider { width: 1px; height: 32px; background: var(--border); flex: none; }
 .shell-header__title { font-size: var(--fs-label); font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
 .shell-header__spacer { flex: 1 1 auto; }
@@ -479,25 +479,62 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 .stack--tight > * + * { margin-top: var(--s2); }
 
 /* --- Экран входа ------------------------------------------------------ */
-.login { display: flex; min-height: 100vh; background: var(--surface); }
-/* Обе колонки ужимаются пропорционально: при 1280 и 1024 форма остаётся целой,
+/* Сетка входа. Обе половины стоят на одних числах, и числа объявлены здесь
+   одним местом: поле, верхняя горизонталь и низ. Пока поле панели (72) и поле
+   формы (центрирование в своей колонке) задавались порознь, они совпадали
+   только случайно и разъезжались с шириной окна: 72 против 100 при 1440,
+   72 против 340 при 1920, 40 против 120 при 1280.
+   72 — не подобранное число, а замер макета design/vhod.png: ink-бокс
+   логотипа начинается на 72,5 при холсте 1920. Собрано из шкалы --s*,
+   чтобы поля входа двигались вместе с остальным ритмом проекта. */
+.login {
+  display: flex; min-height: 100vh; background: var(--surface);
+  --login-pad:    calc(var(--s10) + var(--s2)); /* 72 — поле от края колонки */
+  --login-top:    calc(var(--s10) + var(--s6)); /* 88 — верхняя горизонталь */
+  --login-bottom: var(--s10);                   /* 64 — общий низ колонок */
+}
+/* Половины равны и ужимаются вместе: одинаковая основа и одинаковый коэффициент
+   дают ровно 50/50 на любой ширине. С прежним `0 1` панель оставалась 720px и
+   правая колонка одна забирала весь прирост — поле формы росло вместе с окном.
    min-width:0 снимает автоминимум флекс-элемента, из-за которого экран уезжал вправо. */
 .login__side {
-  flex: 0 1 var(--login-side); min-width: 0; padding: 88px 72px var(--s10);
+  flex: 1 1 var(--login-side); min-width: 0;
+  padding: var(--login-top) var(--login-pad) var(--login-bottom);
   background: var(--ink); color: var(--surface);
   display: flex; flex-direction: column;
 }
-.login__logo { display: flex; align-items: center; gap: var(--s5); }
-.login__logo .ic { width: 44px; height: 44px; color: var(--accent); }
-.login__logo-name { font-size: var(--fs-logo); font-weight: 700; letter-spacing: 0.02em; line-height: 1; }
-.login__sub { margin-top: var(--s5); font-size: var(--fs-label); letter-spacing: 0.2em; text-transform: uppercase; }
-.login__pitch { margin: auto 0; }
+/* Знак на тёмной панели входа — белая версия файла клиники,
+   assets/logo-fakt-belyy.png, её собирает tools/sdelat-belyy-logotip.py из
+   assets/logo-fakt.png (в шапке кабинета фон светлый, там остаётся чёрный
+   знак). Плашки под ним нет и не нужно: буквы белые в самом файле, зелёная
+   точка своя. Перекрасить фильтром нельзя — invert уводит точку в магенту,
+   brightness(0) гасит её совсем; поэтому цвет живёт в файле, а у .login__logo
+   своих красок и отступов нет. */
+/* Знак садится на верхнюю горизонталю оптически, а не краем картинки. Файл
+   обрезан по краске впритык (ink-бокс = все 270×90), а у надписи «Вход» над
+   прописными стоит полулидинг: её строчный бокс начинается выше самих букв.
+   Мерено по пикселям скриншота 1440×900: верх краски логотипа против верха
+   краски «ВХОД» — расхождение 4px, ровно шаг шкалы. */
+.login__logo { margin-top: var(--s1); }
+/* Панель собрана сверху вниз шагами шкалы, а не «по центру остатка»:
+   прежний margin:auto 0 подвешивал подпись в свободном месте, и её отбивки
+   гуляли вместе с высотой окна — 174px при 900, 214px при 1280. */
+.login__pitch { margin-top: var(--s10); }
 .login__rule { width: 88px; height: 3px; background: var(--accent); margin-top: var(--s7); }
-.login__contacts { border-top: 1px solid rgba(255,255,255,.18); padding-top: var(--s6); }
+/* Контакты держатся низа колонки: при равном нижнем поле они выходят на одну
+   горизонталь с последним блоком формы. */
+.login__contacts {
+  margin-top: auto;
+  border-top: 1px solid rgba(255,255,255,.18); padding-top: var(--s6);
+}
 .login__contacts p { margin-top: var(--s3); font-size: var(--fs-md); }
+/* Форма прижата к своему полю и к верхней горизонтали. Центрирование в колонке
+   отсюда убрано: именно оно делало поле справа зависимым от ширины окна, а
+   «Вход» — плавающим по вертикали относительно логотипа. */
 .login__form-wrap {
-  flex: 1 1 520px; min-width: 0;
-  display: flex; align-items: center; justify-content: center; padding: var(--s9) var(--s6);
+  flex: 1 1 var(--login-side); min-width: 0;
+  display: flex; align-items: flex-start; justify-content: flex-start;
+  padding: var(--login-top) var(--login-pad) var(--login-bottom);
 }
 .login__form { width: 520px; max-width: 100%; }
 .login__eyebrow { color: var(--ink); }
@@ -522,9 +559,13 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 /* --- Ноутбук и 200% увеличения: колонки уже, поля меньше ---------------- */
 @media (max-width: 1280px) {
   :root { --login-side: 520px; --gutter: 32px; }
-  .login__side { padding: var(--s10) var(--s8) var(--s8); }
-  .login__form-wrap { padding: var(--s7) var(--s5); }
-  .login__logo-name { font-size: 2.5rem; }
+  /* Поле, верх и низ меняются один раз на обе половины сразу. */
+  /* Низ не ужимается вместе с полем: он держит общую нижнюю горизонталь
+     колонок, и каждый снятый с него шаг вдвое расходит контакты с последним
+     блоком формы. */
+  .login { --login-pad: var(--s8); --login-top: var(--s10); }
+  .login__pitch { margin-top: var(--s9); }
+  .brand__logo--xl { height: 64px; }
   .lead { font-size: 1.5rem; }
 }
 
@@ -554,12 +595,21 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
   .display { font-size: 2rem; }
   .pills { flex-wrap: wrap; gap: var(--s2); }
   .pill, .pill:first-child, .pill:last-child { border-left-width: 1px; border-radius: var(--radius-sm); }
-  .login { display: block; }
-  .login__side { width: auto; padding: var(--s6) var(--s5); }
-  .login__pitch { margin: var(--s7) 0; }
-  .login__logo-name { font-size: 2rem; }
+  /* Стопкой поле остаётся общим: панель и форма получают его из тех же
+     переменных, что и в две колонки. Раньше панель шла на var(--s5), а форма
+     внутри своей колонки ещё и центрировалась — при 768 её поле выходило 124
+     против 20 у панели. */
+  .login { display: block; --login-pad: var(--s5); --login-top: var(--s6); --login-bottom: var(--s6); }
+  .login__side { width: auto; }
+  .login__logo { margin-top: 0; }   /* верхней горизонтали стопкой нет */
+  .login__pitch { margin-top: var(--s7); }
+  /* margin-top:auto прижимал контакты к низу колонки; стопкой свободного места
+     нет, и отбивку надо назвать явно. */
+  .login__contacts { margin-top: var(--s7); }
+  .brand__logo--xl { height: 56px; }
   .lead { font-size: 1.25rem; }
-  .login__form-wrap { padding: var(--s6) var(--s5) 96px; }
+  /* Низ — полоса под плавающую обвязку прототипа, она тут ни при чём. */
+  .login__form-wrap { padding: var(--login-top) var(--login-pad) 96px; }
   .card__body, .row { padding: var(--s5) var(--s4); }
   /* Заголовок и подпись секции не делят одну строку: обоим не хватает места. */
   .section__head { flex-wrap: wrap; row-gap: var(--s1); }

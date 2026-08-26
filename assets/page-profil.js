@@ -375,7 +375,7 @@
 
   function exitBlock() {
     return '<div class="pr-exit">' +
-      '<a class="btn btn--secondary" href="vhod.html">' + ic('logout') + 'Выйти</a>' +
+      '<a class="btn btn--secondary" href="index.html">' + ic('logout') + 'Выйти</a>' +
       '<p class="muted">Кабинет закроется на этом устройстве, данные останутся.</p>' +
     '</div>';
   }
