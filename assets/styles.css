@@ -1,0 +1,738 @@
+/* =========================================================================
+   Прототип личного кабинета пациента — клиника ФАКТ
+   Сетка, типографика, компоненты, состояния.
+
+   ЦВЕТА И КЕГЛИ СНЯТЫ С МАКЕТОВ (design/vhod.png, design/kabinet.png).
+   Макеты экспортированы в 2×: 3840px по ширине при холсте 1920.
+   Цвета — сэмплы пикселей (PIL), кегли — измеренная высота прописных
+   (cap-height) с пересчётом cap / 0,715.
+   ========================================================================= */
+
+/* Inter — фирменный шрифт клиники: её сайт грузит "Inter Display", "Inter"
+   с Google Fonts, весь диапазон 100..900. Здесь тот же шрифт файлом рядом:
+   внешние адреса на file:// не работают и запрещены правилом проекта.
+   Вариативный, два подмножества — кириллица и латиница, 100 КБ на оба.
+   Лицензия OFL, файл в assets/fonts/LICENSE-Inter.txt: класть в открытый
+   репозиторий можно.
+   🔴 local() намеренно нет: он разрешает подставить установленный на машине
+   Inter вместо нашего файла, и прототип снова выглядел бы по-разному
+   у нас и у заказчика. */
+@font-face {
+  font-family: "Inter"; font-style: normal; font-weight: 100 900;
+  font-display: swap; src: url("fonts/inter-cyrillic.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Inter"; font-style: normal; font-weight: 100 900;
+  font-display: swap; src: url("fonts/inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* --- Цвет. Источник: сэмплы из макетов ------------------------------ */
+  --ink:          #161616; /* vhod: тёмная панель и заголовки; kabinet: текст */
+  --muted:        #707176; /* vhod: подписи и подсказки; kabinet: вторичный текст */
+  --line:         #EAEAEA; /* kabinet: низ шапки, правая грань меню, разделители */
+  --border:       #CBCBCB; /* kabinet и vhod: рамка карточек, полей, пилюль */
+  --surface:      #FFFFFF; /* карточки, шапка, меню */
+  --bg:           #F6F6F6; /* фон рабочей области, плашка на входе */
+  --accent:       #4EE928; /* заливка главной кнопки, глаз в логотипе */
+  --accent-deep:  #008156; /* ссылки, активная метка меню, полоса блока-сноски */
+  --accent-soft:  #A5F392; /* неактивная главная кнопка = accent 50% на белом */
+  --accent-label: #898989; /* подпись на неактивной кнопке */
+  --danger:       #C02626; /* в макетах нет: ошибки полей и просрочка */
+  --focus:        #0B62D6; /* в макетах нет: видимый фокус (A01) */
+  /* Тёплая группа. Сняты пипеткой с макетов и переехали сюда с экранов
+     лечения и лояльности: до этого каждый экран объявлял их у себя. */
+  --warn:         #FACA30; /* lechenie: грань «красной черты», метка «к оплате» */
+  --warm-bg:      #ECD0B3; /* lechenie: плитка ограничения, плашка фиксации цены */
+  --warm-ink:     #C38546; /* lechenie: значок ограничения, метка сгорания баллов */
+  --draft:        #F8D666; /* loyalnost: метка «черновик, с клиникой не согласовано» */
+
+  /* --- Кегль. Источник: измеренная cap-height в макетах --------------- */
+  --fs-logo:    3.125rem;  /* 50px — «ФАКТ» на входе, cap 36,5 */
+  --fs-display: 2.75rem;   /* 44px — «27 августа», cap 31,5 */
+  --fs-h1:      2.5rem;    /* 40px — заголовок экрана, cap 29,5–30,5 */
+  --fs-time:    2rem;      /* 32px — «11:40», cap 22,5 */
+  --fs-lead:    1.875rem;  /* 30px — лид на тёмной панели входа */
+  --fs-xl:      1.25rem;   /* 20px — крупная строка карточки, cap 14,5 */
+  --fs-lg:      1.125rem;  /* 18px — текст на входе, cap 13,5 */
+  --fs-md:      1.0625rem; /* 17px — меню, пилюли, ссылки, cap 12,5 */
+  --fs-base:    1rem;      /* 16px — базовый текст (A01: не меньше 16) */
+  --fs-label:   0.875rem;  /* 14px — прописные подписи вразрядку, cap 10,5 */
+
+  --lh-tight: 1.15;
+  --lh-base:  1.5;
+
+  /* --- Ритм ----------------------------------------------------------- */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px; --s5: 20px;
+  --s6: 24px; --s7: 32px; --s8: 40px; --s9: 48px; --s10: 64px;
+  /* Плавающая обвязка прототипа и полоса под ней. Полоса считается от самой
+     обвязки, а не подбирается числом: обвязка занимает снизу кнопку плюс её
+     отступ от края, и запас идёт сверх этого. Пока число подбиралось на глаз,
+     высоту обвязки оплачивал нижний отступ страницы — они складывались молча,
+     и первый лишний пиксель кнопки съедал весь запас, ничего не сломав внешне.
+     Ниже полосу получают все экраны — и собранные каркасом, и собранные без
+     него: обвязка на них одна и та же. */
+  --dock-btn-h: 40px;         /* сторона круглой кнопки обвязки */
+  --dock-h: calc(var(--dock-btn-h) * 2 + var(--s2)); /* столбик из двух кнопок */
+  --dock-side:  var(--s6);    /* её отступ от правого края окна */
+  --dock-gap:   var(--s6);    /* её отступ от нижнего края окна */
+  /* Полоса, которую колонка содержимого оставляет обвязке справа: сама кнопка,
+     её отступ от края окна и зазор. Непересечение держится этой строкой,
+     а не тем, что под обвязкой случайно никого не оказалось. */
+  --dock-lane:  calc(var(--dock-btn-h) + var(--dock-side) + var(--s2));
+  --dock-reserve: var(--s7);  /* запас между последней строкой экрана и обвязкой */
+  --dock-space: calc(var(--dock-h) + var(--dock-gap) + var(--dock-reserve));
+
+  --radius:     8px;   /* карточки и поля: замер скругления в макете ≈7px */
+  --radius-sm:  6px;
+  --radius-pill: 999px;
+  --header-h:  76px;   /* замер: граница низа шапки на 151px в 2× */
+  --sidebar-w: 268px;  /* замер: правая грань меню на 535px в 2× */
+  --gutter:    48px;   /* замер: поле рабочей области */
+  --control-h: 46px;
+  --control-sm: 40px; /* вкладки, поиск и фильтры: замер макетов — ровно 40 */
+  --page-max:  1608px;
+  /* Каркас целиком: колонка плюс меню. Выше этой ширины содержимое
+     перестаёт расти, поэтому и шапка должна остановиться вместе с ним —
+     иначе логотип и пилюли уезжают к краям экрана от своей же колонки.
+     Видно при уменьшении масштаба: это то же самое, что широкий монитор. */
+  --shell-max: calc(var(--page-max) + var(--sidebar-w));
+  --login-side: 720px; /* тёмная панель входа при 1920; ниже ужимается вместе с формой */
+
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+          Arial, "Noto Sans", sans-serif;
+}
+
+/* --- Основа ----------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, figure, ul, ol { margin: 0; }
+[hidden] { display: none !important; }   /* классы компонентов не должны перебивать hidden */
+ul, ol { padding: 0; list-style: none; }
+img, svg { max-width: 100%; }
+button { font: inherit; color: inherit; }
+a { color: var(--accent-deep); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+:focus-visible {                /* A01: видимый фокус на всём интерактивном */
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --scroll-x — признак «за то, что не влезает вбок, отвечаю сам»: узел либо
+   прокручивает содержимое вбок нарочно, либо нарочно его обрезает. Замер
+   освобождает по нему обе свои ноги — и «шире вьюпорта», и «не влезло в свою
+   ячейку». Сброс на «*» обязателен: пользовательское свойство наследуется, и
+   без него освобождение молча доставалось всем потомкам — вложенный
+   собственный скроллер внутри .table-wrap становился невидимым. Объявленное
+   значение бьёт унаследованное, поэтому нулевой «*» не мешает самим
+   объявлениям на узлах. */
+* { --scroll-x: 0; }
+/* Поля ввода прокручивают собственное значение сами: длинная почта в поле —
+   не дефект вёрстки, и замеру там смотреть нечего. */
+input, textarea, select { --scroll-x: 1; }
+
+.ic { width: 20px; height: 20px; flex: none; display: block; }
+.ic--sm { width: 16px; height: 16px; }
+.ic--lg { width: 24px; height: 24px; }
+.ic--xl { width: 40px; height: 40px; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; --scroll-x: 1;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* --- Типографика ------------------------------------------------------ */
+/* Заголовки — стандарт клиники, снят с её сайта (.h2, .h3): вес 900,
+   заглавные, отрицательный трекинг около -1% от кегля. Кегли свои. */
+.h1        { font-size: var(--fs-h1); line-height: var(--lh-tight); font-weight: 900;
+             text-transform: uppercase; letter-spacing: -0.01em; }
+.h2        { font-size: var(--fs-xl); line-height: 1.3; font-weight: 900;
+             text-transform: uppercase; letter-spacing: -0.01em; }
+.display   { font-size: var(--fs-display); line-height: var(--lh-tight); font-weight: 700; letter-spacing: -0.01em; }
+.time      { font-size: var(--fs-time); line-height: var(--lh-tight); font-weight: 700; }
+.lead      { font-size: var(--fs-lead); line-height: 1.35; font-weight: 400; }
+.label {
+  font-size: var(--fs-label); line-height: 1.3; font-weight: 900;
+  /* Вес по стандарту клиники, а трекинг остаётся положительным вопреки ему:
+     у неё заглавные идут кеглем 24-26px, где отрицательный читается, а здесь
+     14px — на такой мелочи минус слипается. Клиника глазная, требование A01
+     про читаемость перевешивает буквальное следование. */
+  letter-spacing: 0.09em; text-transform: uppercase;
+}
+.label--muted { color: var(--muted); font-weight: 600; }
+.muted     { color: var(--muted); }
+.strong    { font-weight: 700; }
+.nowrap    { white-space: nowrap; }
+.text-danger { color: var(--danger); }
+.text-accent { color: var(--accent-deep); }
+
+/* --- Кнопки ----------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  min-height: var(--control-h); padding: 0 var(--s5);
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: transparent; font-size: var(--fs-md); font-weight: 700;
+  text-align: center; text-decoration: none; cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.btn:hover { text-decoration: none; }
+.btn--primary { background: var(--accent); color: var(--ink); }
+.btn--primary:hover { background: #43CE22; }
+.btn--secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+.btn--secondary:hover { background: var(--bg); }
+.btn--quiet { background: transparent; color: var(--accent-deep); padding: 0 var(--s2); min-height: 32px; }
+.btn--danger { background: var(--surface); color: var(--danger); border-color: var(--border); }
+.btn--block { display: flex; width: 100%; }
+.btn--lg { min-height: 62px; font-size: var(--fs-lg); }
+/* Ступень под единственную кнопку обложки: в макете она 105px — крупнее всего,
+   что стоит на экранах кабинета. Шкала высот целиком: 32 · 36 · 40 · 46 · 62 · 105. */
+.btn--xl { min-height: 105px; font-size: var(--fs-lg); }
+.btn--sm { min-height: 36px; padding: 0 var(--s3); font-size: var(--fs-base); }
+.btn[disabled], .btn--disabled {
+  cursor: not-allowed; background: var(--accent-soft); color: var(--accent-label);
+  border-color: transparent;
+}
+.btn--secondary[disabled], .btn--secondary.btn--disabled { background: var(--bg); color: var(--muted); border-color: var(--border); }
+
+/* --- Тумблер ----------------------------------------------------------
+   Переключатель «включено/выключено»: согласия и каналы уведомлений в профиле,
+   а дальше — всё, где понадобится то же самое. Собран был локально в профиле и
+   вернулся находкой контракта; место общему компоненту здесь. Заблокированный
+   рисуется не кнопкой, а строкой — нажимать нечего. */
+.switch {
+  display: inline-flex; align-items: center; width: 56px; height: 30px; padding: 2px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--line); cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.switch__knob {
+  width: 24px; height: 24px; border-radius: 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  transition: transform .12s ease;
+}
+.switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"] .switch__knob { transform: translateX(26px); background: var(--ink); border-color: var(--ink); }
+.switch[aria-disabled="true"] { cursor: default; }
+.switch--muted { opacity: .4; }
+.switch__label { display: block; margin-top: var(--s2); font-size: var(--fs-base); color: var(--muted); }
+
+/* --- Поля ввода ------------------------------------------------------- */
+.field { display: block; margin-bottom: var(--s4); }
+.field__label { display: block; margin-bottom: var(--s3); }
+.input {
+  display: block; width: 100%; min-height: 62px;
+  padding: 0 var(--s5);
+  font-family: inherit; font-size: var(--fs-lg); color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.input::placeholder { color: var(--muted); }
+.input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+.input--sm { min-height: var(--control-h); font-size: var(--fs-base); padding: 0 var(--s4); }
+.input--error { border-color: var(--danger); border-width: 2px; }
+textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: var(--lh-base); resize: vertical; }
+.field__hint { display: block; margin-top: var(--s3); font-size: var(--fs-base); color: var(--muted); }
+.field__error { display: block; margin-top: var(--s3); font-size: var(--fs-base); color: var(--danger); font-weight: 600; }
+
+/* --- Карточка --------------------------------------------------------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.card__body { padding: var(--s6); }
+.card--flat { border-color: var(--line); }
+
+/* Заголовок секции с линейкой — «БЛИЖАЙШЕЕ ———» из макета */
+.section { margin-bottom: var(--s7); }
+.section__head { display: flex; align-items: center; gap: var(--s4); margin-bottom: var(--s4); }
+.section__head::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--border); }
+/* Подпись секции стоит справа от линейки, а не сразу за заголовком (макет). */
+.section__aside { order: 1; color: var(--muted); font-size: var(--fs-base); }
+
+/* --- Плашка ----------------------------------------------------------- */
+.notice { padding: var(--s5); border-radius: var(--radius); background: var(--bg); }
+.notice__title { margin-bottom: var(--s2); }
+.notice--accent { background: var(--surface); border-left: 3px solid var(--accent-deep); border-radius: 0; padding-left: var(--s5); }
+.notice--danger { background: #FCEFEF; border-left: 3px solid var(--danger); border-radius: 0; }
+.notice--soft { background: var(--bg); color: var(--muted); }
+
+/* --- Строка списка с иконкой ------------------------------------------ */
+.rows { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.row {
+  display: flex; align-items: flex-start; gap: var(--s4);
+  padding: var(--s5) var(--s6);
+  border-top: 1px solid var(--line);
+}
+.rows > .row:first-child { border-top: 0; }
+.row__icon {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); color: var(--muted); background: var(--surface);
+}
+/* Длинное неразрывное слово («Сопровождающий») шире своей ячейки на узкой
+   колонке: переносим внутри слова, как и в .row__title. */
+.row__body { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* display:block — потому что в Render.doseList и в списках задач это <span>:
+   без него заголовок и пояснение слипаются в одну строку. */
+/* overflow-wrap — потому что на 390px название препарата длиннее колонки
+   уезжало под кнопку действия, и экран лечения обходил это своей раскладкой. */
+.row__title { display: block; font-size: var(--fs-xl); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.row__sub { display: block; margin-top: var(--s1); color: var(--muted); }
+.row__action { flex: none; align-self: center; }
+.row--compact { padding: var(--s3) var(--s5); align-items: center; }
+.row--compact .row__title { font-size: var(--fs-base); }
+.row--muted { color: var(--muted); }
+.row.is-missed { background: #FCF6F6; }
+
+/* Ссылка-действие со стрелкой */
+.act {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  color: var(--accent-deep); font-weight: 700; font-size: var(--fs-md);
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.act:hover { text-decoration: underline; }
+
+/* --- Пустое состояние ------------------------------------------------- */
+.empty { text-align: center; padding: var(--s10) var(--s5); }
+.empty__icon { color: var(--muted); margin: 0 auto var(--s5); width: 40px; height: 40px; }
+.empty__title { font-size: var(--fs-time); font-weight: 700; line-height: var(--lh-tight); }
+.empty__text { margin-top: var(--s3); color: var(--muted); font-size: var(--fs-lg); }
+.empty__action { margin-top: var(--s6); }
+
+/* --- Сегментированный контрол: переключатель человека и вкладки списка ---
+   Одна сборка на два применения. Различаются только ступень высоты и то, чем
+   помечен выбранный: у переключателя это кнопки с aria-pressed, у вкладок —
+   ссылки с aria-current (заказчик ходит по файлам, а не по состоянию). */
+.pills, .tabs { display: flex; align-items: center; gap: 0; max-width: 100%; }
+.pill, .tab {
+  min-height: 34px; padding: 0 var(--s4);
+  border: 1px solid var(--border); border-left-width: 0;
+  background: var(--surface); color: var(--ink);
+  font-size: var(--fs-md); line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center;
+}
+.pill:first-child, .tab:first-child { border-left-width: 1px; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.pill:last-child,  .tab:last-child  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.pill:hover, .tab:hover { background: var(--bg); text-decoration: none; }
+.pill[aria-pressed="true"], .tab[aria-current] {
+  background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 700;
+}
+/* Вкладки списка стоят на ступени 40px — вровень с поиском и фильтрами рядом. */
+.tab { min-height: var(--control-sm); padding: 0 var(--s5); font-weight: 600; }
+/* На 360 два длинных русских слова в сегментах перестали влезать: Inter шире
+   системного шрифта, и «ПредстоящиеПрошедшие» вылезли из своей ячейки на 20px.
+   Ужимаются собственные поля сегмента, а размер остаётся по содержимому:
+   равные доли (flex: 1 1 0) зажимали пилюли в окне справки ниже их текста.
+   🔴 Стоит ПОСЛЕ .tab: та строка задаёт своё поле и перебивала это правило. */
+@media (max-width: 400px) {
+  .pill, .tab { padding: 0 var(--s2); }
+}
+
+/* --- Модальное окно --------------------------------------------------- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(22,22,22,.45);
+  display: flex; align-items: center; justify-content: center; padding: var(--s5);
+}
+.modal {
+  background: var(--surface); border-radius: var(--radius);
+  width: min(560px, 100%); max-height: 88vh; overflow: auto;
+  padding: var(--s7); box-shadow: 0 24px 64px rgba(22,22,22,.24);
+}
+.modal__title { font-size: var(--fs-time); font-weight: 700; line-height: var(--lh-tight); padding-right: var(--s7); }
+.modal__text { margin-top: var(--s4); color: var(--muted); font-size: var(--fs-lg); }
+.modal__body { margin-top: var(--s5); }
+.modal__foot { margin-top: var(--s6); display: flex; gap: var(--s3); flex-wrap: wrap; }
+.modal__close {
+  position: absolute; top: var(--s4); right: var(--s4);
+  background: none; border: 0; padding: var(--s2); cursor: pointer; color: var(--muted);
+}
+.modal-wrap { position: relative; }
+
+/* --- Каркас: шапка ---------------------------------------------------- */
+.shell-header {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: var(--s5);
+  height: var(--header-h);
+  /* Левый отступ шапки равен отступу содержимого пункта меню: поле пункта
+     (--s4) плюс его собственное (--s3). Тогда логотип встаёт ровно над
+     столбцом значков меню. Раньше они не совпадали никогда, и расхождение
+     меняло знак: на 1280 логотип был правее значка на 12px, на 1000 —
+     левее на 8. Незаметно на строчном светлом меню, очевидно на заглавном
+     жирном. Оба отступа растут вместе с полем каркаса на широком экране.
+     Ниже 1000px меню становится лентой, столбца нет — там свой отступ. */
+  padding-left: calc(max(0px, (100% - var(--shell-max)) / 2) + var(--s4) + var(--s3));
+  padding-right: calc(max(0px, (100% - var(--shell-max)) / 2) + var(--s8));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { display: inline-flex; align-items: center; gap: var(--s3); font-weight: 700; }
+/* Логотип клиники — растровый файл рядом, а не иконка со словом: внешние
+   адреса на file:// не работают, а подпись «глазная клиника» есть в самом
+   знаке. Высота 44 из 76 шапки — близко к натуральной для файла 270×90. */
+.brand__logo { display: block; height: 44px; width: auto; }
+.brand__logo--lg { height: 56px; }
+.shell-header__divider { width: 1px; height: 32px; background: var(--border); flex: none; }
+.shell-header__title { font-size: var(--fs-label); font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
+.shell-header__spacer { flex: 1 1 auto; }
+.shell-header__who { color: var(--muted); font-size: var(--fs-md); }
+
+/* --- Каркас: меню и рабочая область ----------------------------------- */
+.shell-body { max-width: var(--shell-max); margin: 0 auto; display: flex; align-items: stretch; min-height: calc(100vh - var(--header-h)); }
+.shell-nav {
+  flex: none; width: var(--sidebar-w); padding: var(--s4) 0;
+  background: var(--surface); border-right: 1px solid var(--line);
+}
+.nav-item {
+  position: relative; display: flex; align-items: center; gap: var(--s3);
+  min-height: 40px; margin: 0 var(--s4); padding: 0 var(--s3);
+  border-radius: var(--radius-sm);
+  color: var(--muted); font-size: var(--fs-md); text-decoration: none;
+  /* Стандарт меню клиники, снят с её сайта (.page-header__nav-link):
+     вес 900, заглавные, отрицательный трекинг. Кегль оставлен свой —
+     у них 1.5rem на широкое горизонтальное меню, здесь боковая колонка. */
+  font-weight: 900; text-transform: uppercase; letter-spacing: -0.01em;
+}
+.nav-item:hover { background: var(--bg); color: var(--ink); text-decoration: none; }
+.nav-item.is-active { background: var(--bg); color: var(--ink); }
+.nav-item.is-active::before {
+  content: ""; position: absolute; left: calc(var(--s3) * -1 + 1px); top: 8px; bottom: 8px;
+  width: 3px; border-radius: 2px; background: var(--accent-deep);
+}
+.shell-main { flex: 1 1 auto; min-width: 0; background: var(--bg); }
+/* Строка про замечания живёт в общем ритме колонки: те же поля, что у .page,
+   и та же полоса под обвязку справа. */
+.shell-hint {
+  max-width: var(--page-max); margin: 0 auto;
+  padding: var(--s6) max(var(--gutter), var(--dock-lane)) 0 var(--gutter);
+  color: var(--muted);
+}
+
+.page {
+  max-width: var(--page-max); margin: 0 auto; padding: var(--s9) var(--gutter) var(--s10);
+  /* Справа — полоса под плавающую обвязку: см. --dock-lane. */
+  padding-right: max(var(--gutter), var(--dock-lane));
+}
+.page__title { margin-bottom: var(--s7); }
+
+/* --- Панель прототипа и кнопка замечания ------------------------------ */
+/* В самом низу прокрутки последняя строка экрана не должна оказаться под
+   панелью: до её кнопки уже не дотянуться, а прокрутить дальше нечего.
+   main#page — обложка, она собрана без каркаса и своей .shell-main не имеет. */
+.shell-main, main#page { padding-bottom: var(--dock-space); }
+.proto-dock {
+  position: fixed; right: var(--dock-side); bottom: var(--dock-gap); z-index: 60;
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--s2);
+}
+/* Кнопка обвязки — круг со значком: подпись рядом со значком делала обвязку
+   299 px шириной, и на стартовом виде она накрывала кнопки правого края
+   целиком. Столбик в одну кнопку шириной колонку содержимого не задевает. */
+.proto-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--dock-btn-h); height: var(--dock-btn-h); padding: 0;
+  border: 1px solid var(--ink); border-radius: var(--radius-pill);
+  background: var(--ink); color: var(--surface);
+  font-size: var(--fs-base); font-weight: 700; cursor: pointer;
+}
+.proto-btn--ghost { background: var(--surface); color: var(--ink); border-color: var(--border); }
+.proto-btn__count {
+  /* Счётчик стоит В кнопке, а не свисает с неё: вылезший за коробку значок
+     замер ширин считает содержимым, не влезшим в свою ячейку, — и краснеет
+     на каждом экране. */
+  position: absolute; top: 0; right: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--ink); font-size: 12px; line-height: 1;
+}
+.proto-panel {
+  position: fixed; right: var(--s6); z-index: 61;
+  bottom: calc(var(--dock-h) + var(--dock-gap) + var(--s3));
+  width: min(340px, calc(100vw - var(--s8)));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(22,22,22,.20);
+  padding: var(--s5);
+}
+.proto-panel__group { margin-bottom: var(--s5); }
+.proto-panel__note { color: var(--muted); font-size: var(--fs-base); border-top: 1px solid var(--line); padding-top: var(--s3); }
+.choice { display: flex; align-items: center; gap: var(--s3); min-height: 36px; cursor: pointer; }
+.choice input { width: 20px; height: 20px; accent-color: var(--accent-deep); }
+.stack > * + * { margin-top: var(--s3); }
+.stack--tight > * + * { margin-top: var(--s2); }
+
+/* --- Экран входа ------------------------------------------------------ */
+.login { display: flex; min-height: 100vh; background: var(--surface); }
+/* Обе колонки ужимаются пропорционально: при 1280 и 1024 форма остаётся целой,
+   min-width:0 снимает автоминимум флекс-элемента, из-за которого экран уезжал вправо. */
+.login__side {
+  flex: 0 1 var(--login-side); min-width: 0; padding: 88px 72px var(--s10);
+  background: var(--ink); color: var(--surface);
+  display: flex; flex-direction: column;
+}
+.login__logo { display: flex; align-items: center; gap: var(--s5); }
+.login__logo .ic { width: 44px; height: 44px; color: var(--accent); }
+.login__logo-name { font-size: var(--fs-logo); font-weight: 700; letter-spacing: 0.02em; line-height: 1; }
+.login__sub { margin-top: var(--s5); font-size: var(--fs-label); letter-spacing: 0.2em; text-transform: uppercase; }
+.login__pitch { margin: auto 0; }
+.login__rule { width: 88px; height: 3px; background: var(--accent); margin-top: var(--s7); }
+.login__contacts { border-top: 1px solid rgba(255,255,255,.18); padding-top: var(--s6); }
+.login__contacts p { margin-top: var(--s3); font-size: var(--fs-md); }
+.login__form-wrap {
+  flex: 1 1 520px; min-width: 0;
+  display: flex; align-items: center; justify-content: center; padding: var(--s9) var(--s6);
+}
+.login__form { width: 520px; max-width: 100%; }
+.login__eyebrow { color: var(--ink); }
+.login__title { margin-top: var(--s3); }
+.login__text { margin-top: var(--s4); font-size: var(--fs-lg); color: var(--muted); }
+.login__block { margin-top: var(--s7); }
+.login__disclosure summary {
+  font-size: var(--fs-lg); font-weight: 400; cursor: pointer; list-style: none;
+  display: inline-flex; align-items: center; gap: var(--s2);
+}
+.login__disclosure summary::-webkit-details-marker { display: none; }
+/* Шеврон живёт в квадратной коробке: повёрнутая на 90° строчная «›» иначе
+   разворачивается шире собственного бокса и вылезает из summary вправо. */
+.login__disclosure summary::after {
+  content: "›"; color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1em; height: 1em; line-height: 1; transform: rotate(90deg);
+}
+.login__disclosure[open] summary::after { transform: rotate(-90deg); }
+.login__disclosure .notice--accent { margin-top: var(--s4); }
+
+/* --- Ноутбук и 200% увеличения: колонки уже, поля меньше ---------------- */
+@media (max-width: 1280px) {
+  :root { --login-side: 520px; --gutter: 32px; }
+  .login__side { padding: var(--s10) var(--s8) var(--s8); }
+  .login__form-wrap { padding: var(--s7) var(--s5); }
+  .login__logo-name { font-size: 2.5rem; }
+  .lead { font-size: 1.5rem; }
+}
+
+/* --- Телефон и сильное увеличение: одна колонка (A04) ------------------ */
+@media (max-width: 1000px) {
+  :root { --gutter: 20px; --header-h: 64px; --dock-side: var(--s2); }
+  .shell-header { padding: 0 var(--s4); gap: var(--s3); flex-wrap: wrap; height: auto; min-height: var(--header-h); padding-top: var(--s2); padding-bottom: var(--s2); }
+  .shell-header__divider, .shell-header__who { display: none; }
+  .shell-body { display: block; }
+  .shell-nav {
+    width: auto; border-right: 0; border-bottom: 1px solid var(--line);
+    display: flex; gap: var(--s2); overflow-x: auto; --scroll-x: 1; padding: var(--s2) var(--s3);
+  }
+  .nav-item { margin: 0; white-space: nowrap; }
+  .nav-item.is-active::before { display: none; }
+  .page { padding: var(--s6) max(var(--gutter), var(--dock-lane)) 96px var(--gutter); }
+  /* Кегль мельче базового с 1000px и уже (порог этого медиазапроса, сюда же
+     попадает 200% увеличения на десктопе): на 390 строка разворачивалась в
+     четыре строки и отодвигала содержимое на 92px. Служебная инструкция про
+     прототип не продуктовый текст — A01 про кегль читаемости её не касается,
+     при 200% она рендерится 28px. */
+  .shell-hint {
+    padding: var(--s5) max(var(--gutter), var(--dock-lane)) 0 var(--gutter);
+    font-size: var(--fs-label);
+  }
+  .h1, .empty__title { font-size: 1.75rem; }
+  .display { font-size: 2rem; }
+  .pills { flex-wrap: wrap; gap: var(--s2); }
+  .pill, .pill:first-child, .pill:last-child { border-left-width: 1px; border-radius: var(--radius-sm); }
+  .login { display: block; }
+  .login__side { width: auto; padding: var(--s6) var(--s5); }
+  .login__pitch { margin: var(--s7) 0; }
+  .login__logo-name { font-size: 2rem; }
+  .lead { font-size: 1.25rem; }
+  .login__form-wrap { padding: var(--s6) var(--s5) 96px; }
+  .card__body, .row { padding: var(--s5) var(--s4); }
+  /* Заголовок и подпись секции не делят одну строку: обоим не хватает места. */
+  .section__head { flex-wrap: wrap; row-gap: var(--s1); }
+  .section__aside { flex: 1 0 100%; }
+  .proto-dock { bottom: var(--s3); }
+  .proto-panel { right: var(--s3); left: var(--s3); width: auto;
+    bottom: calc(var(--dock-h) + var(--s3) + var(--s3)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* --- Бейдж статуса (карточки и таблицы) --------------------------------
+   В макетах статус — плашка, а не цветной текст: «отменена» серым текстом
+   и «состоялась» серым текстом глазом не различить. */
+.badge {
+  display: inline-flex; align-items: center; min-height: 26px;
+  padding: 0 var(--s3); border: 1px solid transparent; border-radius: var(--radius-sm);
+  font-size: var(--fs-label); font-weight: 700; letter-spacing: 0.04em;
+  line-height: 1.2; white-space: nowrap;
+}
+.badge--ok    { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--surface); }
+.badge--warn  { background: var(--warn); color: var(--ink); border-color: var(--warn); }
+.badge--off   { background: var(--line); color: var(--muted); border-color: var(--line); }
+.badge--quiet { border-color: var(--border); color: var(--muted); background: var(--surface); }
+.badge--draft {
+  background: var(--draft); color: var(--ink); border-color: var(--draft);
+  gap: var(--s2); letter-spacing: 0.09em; text-transform: uppercase;
+}
+
+/* --- Ступень 40px: поиск и фильтры над списком --------------------------
+   Общая шкала: 46 — кнопки и поля форм, 40 — панель отбора над списком
+   (там же вкладки .tab), 36 — мелкое действие внутри строки. */
+/* Имя не .field: так называется поле формы на входе, и объявленный ниже
+   одноимённый класс перебил бы его через каскад — этой миной уже ломали
+   чужой экран. */
+.search { position: relative; display: flex; min-width: 0; }
+.search__ic { position: absolute; left: var(--s3); top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.search__input {
+  width: 100%; min-width: 0; min-height: var(--control-sm); padding: 0 var(--s4) 0 42px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: var(--fs-md); text-overflow: ellipsis;
+}
+.search__input::placeholder { color: var(--muted); }
+.search__input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+
+/* Ширина списка не жёсткая: он ужимается вместе со строкой вместо того,
+   чтобы раздуться по самому длинному пункту и уронить подпись на вторую
+   строку. flex-basis задаёт желаемую ширину, min-width: 0 разрешает сжатие. */
+.select { position: relative; display: inline-flex; align-items: center; flex: 0 1 168px; min-width: 0; }
+.select__ic { position: absolute; left: var(--s3); color: var(--muted); pointer-events: none; }
+.select__chevron { position: absolute; right: var(--s3); color: var(--muted); pointer-events: none; }
+.select select {
+  appearance: none; -webkit-appearance: none;
+  width: 100%; min-width: 0; min-height: var(--control-sm); padding: 0 36px 0 42px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: var(--fs-md); line-height: 1; cursor: pointer;
+  text-overflow: ellipsis;
+}
+.select select:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+
+/* --- Итоги счёта отдельным блоком (Render.invoiceTotals) ---------------- */
+/* Четвёртая ячейка шире остальных: в ней не сумма, а срок с пояснением.
+   Суммы не переносятся — иначе «137 500 ₽» ломается посреди числа, и прибор
+   этого не видит: переполнения нет, перенос выглядит законным. */
+.totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.3fr); }
+.totals__cell { padding: var(--s6); border-right: 1px solid var(--line); min-width: 0; }
+.totals__cell:last-child { border-right: 0; }
+.totals__cell .display { margin: var(--s2) 0 var(--s1); white-space: nowrap; }
+.totals__when { font-size: var(--fs-xl); font-weight: 700; line-height: 1.3; margin: var(--s2) 0 var(--s1); }
+.totals__note { color: var(--muted); font-size: var(--fs-base); }
+
+/* --- Плитка человека ---------------------------------------------------
+   Кружок с инициалами или фотографией: врач в карточке записи, врач в списке
+   мастера, человек на шаге «Для кого». Форма объявлена здесь один раз — те же
+   пять строк лежали копиями у .doctor__photo и у .zp-person__ava в разметке
+   мастера. Экрану, которому нужен свой размер, рамка или состояние, остаётся
+   модификатор поверх: .appt__face — мельче, .zp-person__ava — подсветка выбора. */
+.face {
+  flex: none; width: 64px; height: 64px; border-radius: var(--radius-pill);
+  background: var(--bg); color: var(--muted);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--fs-xl);
+}
+/* Фотография вместо инициалов: шов отдаёт путь в photo. */
+.face--photo { object-fit: cover; }
+
+/* --- Карточка записи (Render.appointmentCard) -------------------------- */
+.appt { display: grid; grid-template-columns: 320px 1fr 300px; }
+/* Без min-width:0 колонка меряется по самому длинному слову и разносит карточку
+   вширь: на 1024 это уводило экран за край. */
+.appt > * { min-width: 0; }
+.appt__when { padding: var(--s6); border-right: 1px solid var(--line); }
+.appt__when .display { margin: var(--s1) 0; }
+.appt__when .time { margin-top: var(--s4); }
+.appt__status { margin-top: var(--s3); font-size: var(--fs-base); }
+.appt__badge { margin-bottom: var(--s3); }
+/* Плитка врача в карточке записи мельче общей: только размер и кегль. */
+.appt__face { width: 40px; height: 40px; font-size: var(--fs-base); }
+.appt__cost { margin-bottom: var(--s5); }
+.appt__cost .time { margin-top: var(--s1); }
+/* Метка «включено в пакет» — под суммой, а не вместо неё. */
+.appt__mark { margin-top: var(--s2); }
+.appt__who { padding: var(--s6); display: grid; gap: var(--s5); align-content: start; }
+.appt__line { display: flex; gap: var(--s3); align-items: flex-start; color: var(--muted); }
+.appt__line .strong { color: var(--ink); }
+.appt__acts { padding: var(--s6); border-left: 1px solid var(--line); }
+.appt__hint { font-size: var(--fs-base); }
+.appt--off { opacity: .72; }
+.appt--off .display, .appt--off .time { color: var(--muted); }
+/* Запись сегодня — карточка выделена (таблица состояний, экран 2). */
+.appt--today { border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* --- Карточка врача (Render.doctorCard) -------------------------------- */
+.doctor { display: flex; gap: var(--s5); align-items: center; padding: var(--s5); }
+/* Плитка врача в списке мастера — общая, своего размера у неё нет.
+   Портрет кадрируется по верху: на 64px по центру срезает лоб. */
+.doctor__photo--photo { object-position: center top; }
+.doctor__body { flex: 1 1 auto; min-width: 0; }
+.doctor__aside { flex: none; text-align: right; min-width: 0; }
+.doctor__aside .label { color: var(--muted); }
+.doctor__aside .strong { margin-top: var(--s1); }
+
+/* --- Таблица сметы (Render.invoiceTable) ------------------------------- */
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+.table th, .table td { padding: var(--s4) var(--s3); text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table th { font-size: var(--fs-label); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.table .num { text-align: right; white-space: nowrap; }
+/* --scroll-x говорит замеру, что вбок здесь отвечают сами: широкая таблица
+   внутри — норма, а не переполнение экрана. */
+.table-wrap { overflow-x: auto; --scroll-x: 1; }
+/* Карточка, внутри которой только таблица: поля даёт она, а не таблица. */
+.card--table { padding: var(--s2) var(--s5); }
+@media (max-width: 1000px) { .card--table { padding: var(--s2) var(--s4); } }
+
+.row.is-next { background: #F3FDF0; }
+
+/* Четыре ячейки итогов в ряд перестают держать «137 500 ₽» одной строкой
+   задолго до 1280. Считаем: 44px даёт «137 500 ₽» шириной 204px, плюс поля
+   ячейки 2×24 — ячейке нужно 252px. Четыре трека 1fr+1fr+1fr+1,3fr = 4,3fr,
+   значит рабочей области нужно 1084px, а с меню 268 и полями 2×48 это
+   вьюпорт ≈1448. До этого числа сумма вылезала из своей ячейки в соседнюю:
+   коробка абзаца оставалась по ячейке, переполнения страницы не было —
+   и прибор молчал. Порог с запасом на метрики шрифта.
+   Блок стоит после компонента — иначе правило компонента перебивает медиазапрос. */
+@media (max-width: 1500px) {
+  .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .totals__cell:nth-child(2n) { border-right: 0; }
+  .totals__cell:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+
+/* Ноутбук: три колонки карточки уже не помещаются, действия уходят вниз строкой. */
+@media (max-width: 1280px) {
+  .appt { grid-template-columns: 240px minmax(0, 1fr); }
+  .appt__acts { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+  .appt__acts.stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); align-items: start; }
+  .appt__acts.stack > * + * { margin-top: 0; }
+  .appt__hint { grid-column: 1 / -1; }
+}
+
+@media (max-width: 1000px) {
+  .appt { grid-template-columns: 1fr; }
+  .appt__when { border-right: 0; border-bottom: 1px solid var(--line); }
+  .appt__acts { border-left: 0; border-top: 1px solid var(--line); }
+  /* На телефоне три действия в ряд не помещаются — возвращаем их в столбик. */
+  .appt__acts.stack { display: block; }
+  .appt__acts.stack > * + * { margin-top: var(--s3); }
+  .doctor { flex-wrap: wrap; }
+  .doctor__aside { text-align: left; }
+  /* Одна колонка итогов: сумма кеглем 44px рядом с соседкой уже не стоит. */
+  .totals { grid-template-columns: minmax(0, 1fr); }
+  .totals__cell { border-right: 0; border-bottom: 1px solid var(--line); }
+  .totals__cell:last-child { border-bottom: 0; }
+}
