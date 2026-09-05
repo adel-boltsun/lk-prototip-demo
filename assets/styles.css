@@ -41,7 +41,11 @@
   --accent:       #4EE928; /* заливка главной кнопки, глаз в логотипе */
   --accent-deep:  #008156; /* ссылки, активная метка меню, полоса блока-сноски */
   --accent-soft:  #A5F392; /* неактивная главная кнопка = accent 50% на белом */
-  --accent-label: #898989; /* подпись на неактивной кнопке */
+  --accent-label: #5E5E5E; /* подпись на неактивной кнопке. С макетного #898989
+                              на светло-зелёном #A5F392 выходило 2,64:1 — подпись
+                              «Отправить направление» до отметки о согласии
+                              читалась хуже всего на экране. Неактивность тут
+                              держит заливка, а не блёклость букв. */
   --danger:       #C02626; /* в макетах нет: ошибки полей и просрочка */
   --focus:        #0B62D6; /* в макетах нет: видимый фокус (A01) */
   /* Тёплая группа. Сняты пипеткой с макетов и переехали сюда с экранов
@@ -49,6 +53,8 @@
   --warn:         #FACA30; /* lechenie: грань «красной черты», метка «к оплате» */
   --warm-bg:      #ECD0B3; /* lechenie: плитка ограничения, плашка фиксации цены */
   --warm-ink:     #C38546; /* lechenie: значок ограничения, метка сгорания баллов */
+  --accent-tint:  #F3FDF0; /* фон выделенной строки списка: ближайшая запись
+                              на главной, раскрытое направление у врача */
   --draft:        #F8D666; /* loyalnost: метка «черновик, с клиникой не согласовано» */
 
   /* --- Кегль. Источник: измеренная cap-height в макетах --------------- */
@@ -60,7 +66,12 @@
   --fs-lg:      1.125rem;  /* 18px — текст на входе, cap 13,5 */
   --fs-md:      1.0625rem; /* 17px — меню, пилюли, ссылки, cap 12,5 */
   --fs-base:    1rem;      /* 16px — базовый текст (A01: не меньше 16) */
-  --fs-label:   0.875rem;  /* 14px — прописные подписи вразрядку, cap 10,5 */
+  --fs-label:   1rem;      /* 16px — прописные подписи вразрядку. Были 14 (cap 10,5):
+                              приёмка мерила кегль на всех экранах и нашла ровно
+                              этот токен — подписи колонок, бейджи статуса, шапка
+                              каркаса. Аудитория кабинета врача — практикующие
+                              медики, в том числе пожилые (R16i), и 16 здесь
+                              не пожелание, а нижняя граница. */
 
   --lh-tight: 1.15;
   --lh-base:  1.5;
@@ -172,9 +183,12 @@ input, textarea, select { --scroll-x: 1; }
   font-size: var(--fs-label); line-height: 1.3; font-weight: 900;
   /* Вес по стандарту клиники, а трекинг остаётся положительным вопреки ему:
      у неё заглавные идут кеглем 24-26px, где отрицательный читается, а здесь
-     14px — на такой мелочи минус слипается. Клиника глазная, требование A01
-     про читаемость перевешивает буквальное следование. */
-  letter-spacing: 0.09em; text-transform: uppercase;
+     мелкая прописная подпись — на ней минус слипается. Клиника глазная,
+     требование A01 про читаемость перевешивает буквальное следование.
+     Разрядка сбавлена с 0,09em вместе с подъёмом кегля до 16: она считается
+     от кегля, и на 16px прежние 0,09 разносили «Выплачено» и «День
+     восстановления» шире своих ячеек. */
+  letter-spacing: 0.04em; text-transform: uppercase;
 }
 .label--muted { color: var(--muted); font-weight: 600; }
 .muted     { color: var(--muted); }
@@ -301,6 +315,19 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 .row--compact .row__title { font-size: var(--fs-base); }
 .row--muted { color: var(--muted); }
 .row.is-missed { background: #FCF6F6; }
+/* Телефон: заголовок строки на кегль ниже, поля уже. Строке остаётся 192 px
+   на слово «противовоспалительные», которое на --fs-xl просит 250: значок
+   40 px и поля 48 забирают у 296-пиксельной колонки больше половины. Пока
+   правило звучало «перенос внутри слова делает сам .row__title», слово
+   вставало как «противовоспалит / ельные». Кегль базовый — ниже нельзя (A01),
+   и вместе с полем в 16 px он даёт 208 px под 200 нужных. */
+@media (max-width: 480px) {
+  .row { padding: var(--s5) var(--s3); gap: var(--s3); }
+  /* Значок строки на телефоне мельче: 40 px рамки забирали пятую часть
+     колонки в 296 px, а заголовку не хватало восьми. */
+  .row__icon { width: 32px; height: 32px; }
+  .row__title { font-size: var(--fs-base); }
+}
 
 /* Ссылка-действие со стрелкой */
 .act {
@@ -531,10 +558,15 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 /* Форма прижата к своему полю и к верхней горизонтали. Центрирование в колонке
    отсюда убрано: именно оно делало поле справа зависимым от ширины окна, а
    «Вход» — плавающим по вертикали относительно логотипа. */
+/* Справа — та же полоса под плавающую обвязку, что у .page: на 1024 поле
+   колонки ужимается до 40px, а обвязка занимает 72, и её кнопка садилась
+   на правый край «Войти» и на поля анкеты. Ловится это только правилом
+   стартового вида, и до приёмки оно судило по середине органа — у кнопки
+   шириной 432px середина далеко левее обвязки. */
 .login__form-wrap {
   flex: 1 1 var(--login-side); min-width: 0;
   display: flex; align-items: flex-start; justify-content: flex-start;
-  padding: var(--login-top) var(--login-pad) var(--login-bottom);
+  padding: var(--login-top) max(var(--login-pad), var(--dock-lane)) var(--login-bottom) var(--login-pad);
 }
 .login__form { width: 520px; max-width: 100%; }
 .login__eyebrow { color: var(--ink); }
@@ -634,12 +666,22 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 }
 .badge--ok    { border-color: var(--accent-deep); color: var(--accent-deep); background: var(--surface); }
 .badge--warn  { background: var(--warn); color: var(--ink); border-color: var(--warn); }
-.badge--off   { background: var(--line); color: var(--muted); border-color: var(--line); }
+/* Текст на серой плашке — чернилами, а не приглушённым серым: #707176
+   на #EAEAEA даёт 4,05:1, ниже порога 4,5. А закрывающий исход («не дошёл»,
+   «отменено») — ровно то, что врач обязан заметить с первого взгляда. */
+.badge--off   { background: var(--line); color: var(--ink); border-color: var(--line); }
 .badge--quiet { border-color: var(--border); color: var(--muted); background: var(--surface); }
 .badge--draft {
   background: var(--draft); color: var(--ink); border-color: var(--draft);
   gap: var(--s2); letter-spacing: 0.09em; text-transform: uppercase;
 }
+/* Плашка статуса перестаёт быть однострочной на узком экране: на 360
+   «Направление создано» кеглем 16 шире колонки строки, а сокращать подпись
+   нельзя — перечень статусов принадлежит клинике, экраны своих названий
+   не выдумывают. Таблицам это ничего не меняет: они лежат в своей прокрутке.
+   Блок стоит после компонента — иначе правило компонента перебивает
+   медиазапрос. */
+@media (max-width: 1000px) { .badge { white-space: normal; } }
 
 /* --- Ступень 40px: поиск и фильтры над списком --------------------------
    Общая шкала: 46 — кнопки и поля форм, 40 — панель отбора над списком
@@ -747,7 +789,7 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 .card--table { padding: var(--s2) var(--s5); }
 @media (max-width: 1000px) { .card--table { padding: var(--s2) var(--s4); } }
 
-.row.is-next { background: #F3FDF0; }
+.row.is-next { background: var(--accent-tint); }
 
 /* Четыре ячейки итогов в ряд перестают держать «137 500 ₽» одной строкой
    задолго до 1280. Считаем: 44px даёт «137 500 ₽» шириной 204px, плюс поля
@@ -766,6 +808,12 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
 /* Ноутбук: три колонки карточки уже не помещаются, действия уходят вниз строкой. */
 @media (max-width: 1280px) {
   .appt { grid-template-columns: 240px minmax(0, 1fr); }
+  /* Колонка даты худеет с 320 до 240px, а кегль 44px остаётся — и самое
+     длинное название месяца в неё не влезает: «сентября» меряется 195px
+     при 191px содержимого и наезжает на границу колонки. Дефект виден
+     только в сентябре, потому что демо-даты считаются от сегодня.
+     Кегль здесь тот же, что уже стоит ниже 1000px, где колонка узкая. */
+  .appt__when .display { font-size: 2rem; }
   .appt__acts { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
   .appt__acts.stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); align-items: start; }
   .appt__acts.stack > * + * { margin-top: 0; }
@@ -785,4 +833,317 @@ textarea.input { padding: var(--s3) var(--s4); min-height: 120px; line-height: v
   .totals { grid-template-columns: minmax(0, 1fr); }
   .totals__cell { border-right: 0; border-bottom: 1px solid var(--line); }
   .totals__cell:last-child { border-bottom: 0; }
+}
+
+/* --- Направление партнёра: общие блоки Render --------------------------
+   Плашка статуса, карточка направления и лестница статусов с датами. Блоки
+   объявлены в render.js и зовутся четырьмя экранами кабинета врача и панели
+   клиники, поэтому правила лежат здесь, вместе с остальными общими
+   компонентами. Стиль, вживляемый скриптом, приходит только с первой
+   отрисовкой блока: штатный список без раскрытой карточки оставался вовсе
+   без него, и вёрстка дёргалась в момент раскрытия первой карточки. Проверки
+   прибора по стилям — внешние адреса, url(), @import, регистр путей —
+   смотрят .css, а строку внутри скрипта не видят вовсе. */
+.ref-card { display:grid; gap:var(--s6); padding:var(--s6) }
+.ref-card__head { display:flex; flex-wrap:wrap; gap:var(--s3) var(--s5); align-items:flex-start; justify-content:space-between }
+.ref-card__who { flex:1 1 240px; min-width:0 }
+.ref-card__name { font-size:var(--fs-xl); font-weight:700; margin-top:var(--s1) }
+.ref-card__foot { display:flex; flex-wrap:wrap; gap:var(--s3) }
+.ref-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:var(--s5) }
+.ref-facts__cell { min-width:0 }
+.ref-facts__value { margin-top:var(--s1); font-size:var(--fs-md) }
+.ref-block>.label { margin-bottom:var(--s3); display:block }
+.ref-bonus__note { display:block; margin-top:var(--s1); font-size:var(--fs-base) }
+.ref-mark { margin-left:2px }
+.ref-note { color:var(--muted); font-size:var(--fs-base); padding:var(--s3) 0 }
+.ref-notes { margin:0; padding-left:var(--s5) }
+.ladder { list-style:none; margin:0; padding:0; display:grid; gap:var(--s4) }
+.ladder__step { position:relative; display:flex; gap:var(--s3); align-items:flex-start }
+/* Линия между ступенями: путь читается сверху вниз одной нитью,
+   а не рассыпается на четыре независимых строки. */
+.ladder__step:not(:last-child)::before { content:""; position:absolute; left:13px; top:26px; bottom:calc(var(--s4) * -1); width:1px; background:var(--line) }
+.ladder__dot { flex:none; width:26px; height:26px; border-radius:var(--radius-pill); border:1px solid var(--border); background:var(--surface); color:var(--muted); display:flex; align-items:center; justify-content:center }
+.ladder__step.is-done .ladder__dot { border-color:var(--accent-deep); color:var(--accent-deep) }
+.ladder__step.is-stop .ladder__dot { background:var(--line); border-color:var(--line) }
+.ladder__body { min-width:0 }
+.ladder__when { display:block; margin-top:var(--s1); font-size:var(--fs-base) }
+.ladder__step.is-off .ladder__title { color:var(--muted); font-weight:400 }
+.ref-log { list-style:none; margin:0; padding:0 }
+.ref-log__item { display:flex; flex-wrap:wrap; gap:var(--s1) var(--s4); padding:var(--s3) 0; border-bottom:1px solid var(--line); font-size:var(--fs-base) }
+.ref-log__item:last-child { border-bottom:0 }
+.ref-log__when { flex:0 0 150px }
+.ref-log__who { flex:0 0 130px }
+.ref-log__what { flex:1 1 200px; min-width:0 }
+
+/* --- Панель отбора: Render.filterBar ------------------------------------
+   Раскладка строки отбора: поиск, выпадающие фильтры и хвост (у табло клиники
+   это кнопка выгрузки). Сами органы — общие .search и .select выше, своих
+   здесь нет. Правила лежат в файле стилей, а не вживляются скриптом: панель
+   рисуется вместе со страницей, и оформление обязано приходить с ней же.
+   Подписи фильтров длиннее общей ступени 168px — «Все врачи-партнёры»,
+   «Администратор клиники» — поэтому у ступени свой размер, иначе фильтр
+   обрезается многоточием и перестаёт говорить, по чему он фильтрует. */
+.filters { display:flex; align-items:center; gap:var(--s4); flex-wrap:wrap; margin-bottom:var(--s6) }
+.filters__search { flex:0 1 320px }
+.filters__search--wide { flex:1 1 320px }
+.filters__select { flex:0 1 208px }
+/* Хвост прижат к правому краю строки: выгрузка — не фильтр, и стоять в ряду
+   с ними она не должна. */
+.filters__tail { margin-left:auto; display:flex; flex-wrap:wrap; gap:var(--s3) }
+
+/* Телефон и сильное увеличение: одна колонка, органы отбора во всю ширину. */
+@media (max-width: 1000px) {
+  .filters { align-items:stretch }
+  .filters__search, .filters__search--wide { flex:1 1 100% }
+  .filters__select { flex:1 1 160px }
+  .filters__tail { margin-left:0; flex:1 1 100% }
+}
+
+/* --- Приёмы композиции с утверждённых рисунков --------------------------
+   Четыре приёма сняты с отрисованных экранов панели клиники — «На модерации»
+   и карточки партнёра — и вынесены в общий слой, чтобы следующий экран не
+   собирал их заново и не расходился с соседом в мелочах. Разметку рисует
+   render.js для нескольких экранов, поэтому правила лежат здесь.
+
+   Приём 1 (заголовок секции) своих правил не просит: .section__head и
+   .section__aside объявлены выше и рисуют его с первого экрана пациента.
+   Render.sectionHead его только называет, чтобы экраны перестали складывать
+   этот заголовок руками. */
+
+/* Приём 2 — полоса-пояснение. Серая полоса внутри карточки: значок слева,
+   текст в одну-три строки. Несёт оговорку или диагноз, а не заголовок, —
+   поэтому тише текста рядом и без своей рамки. Значок прижат к первой
+   строке: с тремя строками текста середина полосы приходится на вторую,
+   и центрированный значок повисает посреди фразы. */
+.hint-bar {
+  display:flex; gap:var(--s3); align-items:flex-start;
+  padding:var(--s5); border-radius:var(--radius);
+  background:var(--bg); color:var(--muted); font-size:var(--fs-base);
+}
+.hint-bar__ic { flex:none; margin-top:2px }
+.hint-bar__text { min-width:0 }
+
+/* Приём 3 — карточка на зоны. Горизонтальные зоны, разделённые волосяными
+   линиями, у каждой своё внутреннее поле.
+
+   🔴 Ширины колонок приём не назначает: их даёт класс композиции, который
+   объявляет у себя экран (у заявки на модерации это 280 / резина / 300
+   с рисунка), и он же решает, как зоны перестраиваются на узком окне —
+   какая уезжает вниз, зависит от того, что в ней лежит. Общего ответа тут
+   нет, а объявить его здесь значило бы проиграть спор порядком правил:
+   стили экрана подключаются после этого файла и перебили бы любую ступень.
+
+   Поле объявлено самим приёмом. Ровно его и не хватало карточке заявки до
+   рисунка: .card даёт рамку и скругление, а поле приходит с .card__body,
+   которого у карточки на зонах нет, — и содержимое лежало на рамке.
+   min-width:0 держит колонку от растягивания по самому длинному слову,
+   overflow:hidden прячет углы зон под скруглением карточки. */
+.zones { display:grid; overflow:hidden }
+.zones > .zones__cell { min-width:0; padding:var(--s7) }
+.zones > .zones__cell + .zones__cell { border-left:1px solid var(--line) }
+
+/* Приём 4 — крупный якорь. Display-число с прописной подписью над ним и
+   тихой строкой под ним: «ЖДЁТ ОТВЕТА / 5 дней / Заявка от 29.08.2026».
+   Число — самое крупное на карточке, по нему её и читают, и по нему же
+   отсортирован список, в котором она стоит. */
+.anchor__value {
+  display:block; margin:var(--s1) 0;
+  font-size:var(--fs-display); line-height:var(--lh-tight);
+  font-weight:700; letter-spacing:-0.01em;
+}
+.anchor__note { display:block; color:var(--muted) }
+
+/* --- Приёмы, снятые с рисунка «Мои направления» --------------------------
+   Разметку рисует render.js сразу для трёх экранов кабинета врача и панели
+   клиники, поэтому правила лежат здесь, а не в <style> страницы. Композиция
+   (сколько отдано какой зоне) остаётся у экрана — см. приём 3 выше. */
+
+/* Приём 5 — лента отбора со счётчиками. Первичная ось отбора видна целиком:
+   врач читает раскладку потока, не открывая ничего. Точка слева повторяет
+   тон плашки статуса — цвет один и тот же и берётся из одного места. */
+.tally { display:flex; flex-wrap:wrap; gap:var(--s2); margin-bottom:var(--s6) }
+.tally__chip {
+  display:inline-flex; align-items:center; gap:var(--s2); min-height:36px;
+  padding:6px var(--s4); border:1px solid var(--border);
+  border-radius:var(--radius-pill); background:var(--surface);
+  font:inherit; font-size:var(--fs-md); color:var(--muted); cursor:pointer;
+}
+.tally__chip:hover { border-color:var(--ink); color:var(--ink) }
+.tally__chip:focus-visible { outline:3px solid var(--focus); outline-offset:2px }
+.tally__count { font-weight:700; color:var(--ink) }
+/* Выбранная ступень залита тёмным, а не подкрашена: рядом шесть пилюль,
+   и «чуть темнее» на них не читается. */
+.tally__chip.is-on { background:var(--ink); border-color:var(--ink); color:var(--surface); font-weight:600 }
+.tally__chip.is-on .tally__count { color:var(--surface) }
+.tally__dot { flex:none; width:10px; height:10px; border-radius:var(--radius-pill); background:var(--border) }
+.tally__dot--warn  { background:var(--warn) }
+.tally__dot--ok    { background:var(--accent-deep) }
+.tally__dot--off   { background:var(--muted) }
+.tally__dot--quiet { background:var(--border) }
+
+/* Приём 6 — таблица на зонах. table-layout: fixed и доли в процентах: зона
+   не растягивается по самому длинному слову, а переносит его, и таблица
+   физически не может стать шире своей колонки. Прокрутки вбок у неё нет —
+   поэтому у .ztable нет и обёртки .table-wrap с признаком --scroll-x. */
+.card--zones { padding:var(--s3) var(--s6) var(--s6) }
+.ztable { width:100%; table-layout:fixed; border-collapse:collapse; font-size:var(--fs-base) }
+.ztable th {
+  padding:var(--s4) var(--s5) var(--s3) 0; text-align:left; vertical-align:bottom;
+  font-size:var(--fs-label); letter-spacing:0.09em; text-transform:uppercase;
+  color:var(--ink); border-bottom:1px solid var(--border);
+}
+.ztable td { padding:var(--s4) var(--s5) var(--s4) 0; vertical-align:top; border-bottom:1px solid var(--line) }
+.ztable th.num, .ztable td.num { text-align:right; padding-right:0 }
+.ztable__band:last-child > .ztable__row:last-child > td { border-bottom:0 }
+
+/* Значок раскрытия. Своя зона справа, поле цели 40×40 — щёлкать по строке
+   мышью удобно, но клавиатуре и чтению с экрана нужен настоящий орган. */
+.ztable th.ztable__toggle, .ztable td.ztable__toggle { padding-right:0; text-align:right }
+.ztable__mark {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:40px; height:40px; margin:calc(var(--s2) * -1) 0; padding:0;
+  border:0; border-radius:var(--radius-sm); background:none;
+  color:var(--muted); cursor:pointer;
+}
+.ztable__mark:hover { color:var(--ink) }
+.ztable__mark:focus-visible { outline:3px solid var(--focus); outline-offset:2px }
+.ztable__band.is-open .ztable__mark { color:var(--accent-deep) }
+.ztable__band.is-open .ztable__mark .ic { transform:rotate(180deg) }
+
+/* Раскрытие полосой ВНУТРИ таблицы: строка и её полоса лежат в одном tbody
+   и держатся одной заливкой. Карточка под всей таблицей теряла строку,
+   от которой она, и читалась отдельной записью. */
+.ztable__band.is-open { background:var(--accent-tint) }
+.ztable__band.is-open > .ztable__row > td { border-bottom:0 }
+.ztable__strip > td { padding:0 0 var(--s6); border-bottom:2px solid var(--accent-deep) }
+.ztable__foot { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s3) var(--s5); padding-top:var(--s5) }
+.ztable__foot-act { margin-left:auto }
+
+/* Ноутбук и телефон: зоны встают столбиком.
+
+   🔴 Порог стоит там, где СУММА ПОЛОВ зон перестаёт помещаться в таблицу,
+   а не там, где не помещается самое длинное слово одной зоны. Разница
+   стоила целой слепой полосы: порог был 1100, полы мерены на 1280, и между
+   ними лежала ширина, где зоны уже сжались, но ещё не сложились в столбик —
+   198 узлов с обрезкой на табло заявок, 44 на «Моих направлениях», 35 на
+   карточке партнёра. Владелец увидел это раньше прибора: матрица ширин шла
+   1024 → 1280 и полосу не мерила вовсе.
+
+   Полы мерены зондом min-content по каждой зоне (подпись вразрядку плюс
+   самое длинное неразрывное слово внутри) на всех шести зонных таблицах:
+   карточка партнёра — 843 px на восемь зон, табло заявок — 802 на семь,
+   начисления — 598, «Мои направления» — 643, реестр партнёров — 560,
+   главная врача — 474. Таблица получает ширину окна минус 421 px каркаса
+   и полей, то есть самой требовательной — карточке партнёра — нужно окно
+   от 1264 px. Порог 1300 давал ей запас в 4 %.
+
+   🔴 05.09 порог пересчитан: 843 были сняты не по всем сценариям экрана.
+   Зонд по сценарию с самыми длинными именами даёт карточке партнёра 890 —
+   «Бурмистрова» и «Тимофеевна» просят на 47 px больше, чем имена, на которых
+   мерили. Окно ей нужно от 1311 px, а порог стоял на 1300: в полосе
+   1301–1310 таблица уже стояла в ряд, а её полы не помещались, и «Краснодар»
+   вставал как «Краснода / р».
+
+   Полы выросли не сами: кегль поднялся с 14 до 16 px по решению владельца,
+   и каждое неразрывное слово подорожало на седьмую часть. На 14 px восемь
+   зон помещались в 1300 с запасом; на 16 px самой требовательной зоне нужно
+   окно от 1317 px, а плашке «Направление создано» — ещё 6 px сверху. Порог
+   поднят до 1400: он даёт долям запас, при котором они считаются целыми
+   процентами, а не подгоняются по два пиксела. Цена решения видна прямо
+   здесь — на ноутбуке 1366 зонные таблицы идут столбиком, а не рядом.
+
+   Мораль та же, что и у слепой полосы: пол, снятый на одном наборе данных
+   и одном кегле, — это не пол, а одно измерение.
+
+   Реестр партнёров с его четырьмя зонами простоял бы в ряд и до 1000 —
+   он и был единственным чистым в полосе. Порог у приёма один намеренно:
+   вторая ступень означала бы вторую копию этих же правил, а копия
+   расходится молча. */
+@media (max-width: 1400px) {
+  .ztable, .ztable thead, .ztable tbody, .ztable tr, .ztable td { display:block; width:auto }
+  .ztable thead { display:none }
+  .ztable__row { position:relative; padding:var(--s4) 0; border-bottom:1px solid var(--line) }
+  .ztable__row > td { padding:0 var(--s9) var(--s2) 0; border-bottom:0 }
+  .ztable td.num { text-align:left }
+  .ztable td.ztable__toggle { position:absolute; top:var(--s3); right:0; padding:0 }
+  .ztable__strip > td { padding:0 0 var(--s5) }
+  .ztable__band.is-open > .ztable__row { border-bottom:0 }
+}
+
+/* Пустое состояние со значком в круге — вариант общего блока по рисункам
+   кабинета врача. Круг просят уже два экрана; копия пипеткой у второго и
+   есть тот способ, которым общий блок перестаёт быть общим. */
+.empty--round .empty__icon {
+  display:flex; align-items:center; justify-content:center;
+  width:64px; height:64px; margin:0 auto var(--s6);
+  border-radius:var(--radius-pill); background:var(--bg);
+}
+.empty--round .empty__icon .ic { width:28px; height:28px }
+
+/* --- Широкая карточка направления --------------------------------------
+   Та же карточка, что и в столбик, но разложенная под ширину: лестница в
+   ряд, комментарии и журнал колонками рядом. Столбиком те же данные брали
+   847 px высоты и выталкивали список за нижний край экрана — раскрытие
+   переставало показывать то, ради чего его открыли. */
+.ref-card--wide { display:grid; gap:var(--s6); padding:var(--s5) 0 var(--s6) }
+.ref-card--wide .ref-card__name { font-size:var(--fs-time); font-weight:800; line-height:var(--lh-tight) }
+.ref-card__state { display:flex; flex-direction:column; align-items:flex-end; gap:var(--s2); text-align:right }
+.ref-card__facts { padding:0; overflow:hidden }
+.ref-card__way { margin:0 }
+.ref-card__cols { display:grid; grid-template-columns:1fr 1.15fr; gap:var(--s5); align-items:start }
+/* Журнал шире комментариев: его строка «дата · кто · что» держится в одну
+   строку только целиком, а комментарий переносится без потерь. Ступени
+   колонок в журнале здесь же поджаты — из них и складывается та строка. */
+.ref-card--wide .ref-log__item { gap:var(--s1) var(--s3); padding:var(--s2) 0 }
+.ref-card--wide .ref-log__when { flex:0 0 96px }
+.ref-card--wide .ref-log__who { flex:0 0 132px }
+.ref-card--wide .ref-log__what { flex:1 1 120px }
+.ref-card__col { display:grid; gap:var(--s5); padding:var(--s5) var(--s6) }
+
+/* Полоса фактов на зоны. Доли сняты с рисунка: услуга и клиника длиннее
+   дат и сумм, и равные колонки рвали их название пополам. Шестая зона
+   («направил») появляется только на чужом экране — в своём кабинете врач
+   назвал бы этим себя. */
+.ref-zones { grid-template-columns:1.6fr 1.45fr 1.05fr 1.05fr 1.35fr }
+.ref-zones--author { grid-template-columns:1.6fr 1.35fr 1.2fr 0.9fr 0.9fr 1.25fr }
+.ref-zones > .zones__cell { padding:var(--s5) var(--s6) }
+.ref-zones__value { margin-top:var(--s1); font-size:var(--fs-md); font-weight:600; line-height:1.35 }
+.ref-zones__sub { margin-top:var(--s1); font-size:var(--fs-base); line-height:1.35 }
+
+/* Лестница в ряд: те же ступени пилюлями, связка между ними — короткая
+   черта снаружи пилюли, шириной ровно в промежуток. */
+.ladder--row { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s3) var(--s5) }
+.ladder--row .ladder__step {
+  align-items:center; gap:var(--s2); padding:6px var(--s3);
+  border:1px solid var(--border); border-radius:var(--radius-pill);
+}
+.ladder--row .ladder__step.is-done { background:var(--surface); border-color:var(--accent-deep) }
+.ladder--row .ladder__step.is-stop { background:var(--line); border-color:var(--line) }
+.ladder--row .ladder__step:not(:last-child)::before { content:none }
+.ladder--row .ladder__step:not(:last-child)::after {
+  content:""; position:absolute; left:100%; top:50%; margin-top:-1px;
+  width:var(--s5); height:2px; background:var(--line);
+}
+.ladder--row .ladder__dot { width:auto; height:auto; border:0; background:none; border-radius:0 }
+.ladder--row .ladder__body { display:flex; align-items:baseline; gap:var(--s2) }
+.ladder--row .ladder__when { margin-top:0 }
+
+/* Узко: журнал уходит под комментарии. Порог стоит там, где строка журнала
+   «дата · кто · что» перестаёт помещаться в свою колонку одной строкой —
+   ниже он рвётся на три, и две колонки перестают экономить высоту. */
+@media (max-width: 1000px) {
+  .ref-card__cols { grid-template-columns:minmax(0, 1fr) }
+}
+/* Связки между ступенями снимаются, как только ряд перестаёт помещаться в
+   одну строку: у последней ступени строки связка повисает в пустоте и ведёт
+   к следующей строке, которой рядом нет. Порог — ширина, ниже которой четыре
+   ступени с датами в строку не встают. */
+@media (max-width: 1500px) {
+  .ladder--row .ladder__step:not(:last-child)::after { content:none }
+  .ladder--row { gap:var(--s2) }
+}
+@media (max-width: 1100px) {
+  .ref-zones, .ref-zones--author { grid-template-columns:minmax(0, 1fr) }
+  .ref-zones > .zones__cell + .zones__cell { border-left:0; border-top:1px solid var(--line) }
+  .ref-card__state { align-items:flex-start; text-align:left }
 }

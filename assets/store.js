@@ -8,11 +8,23 @@
 
   var KEY = 'fakt-lk-prototip';
 
+  /* Сценарий один на прототип, но кабинета два, и наборы у них разные.
+     Роль записана в самом сценарии: она же решает, какое меню рисует Shell
+     и какие сценарии показывает панель прототипа. Список плоский намеренно —
+     setScenario отвергает чужой id по одному и тому же правилу для всех
+     шести, а деление на роли остаётся внутренним делом Store. */
   var SCENARIOS = [
-    { id: 'new',    title: 'Новый пациент' },
-    { id: 'before', title: 'До операции' },
-    { id: 'after',  title: 'После операции' }
+    { id: 'new',    title: 'Новый пациент',   role: 'patient' },
+    { id: 'before', title: 'До операции',     role: 'patient' },
+    { id: 'after',  title: 'После операции',  role: 'patient' },
+    { id: 'vrach-new',    title: 'Новый партнёр',         role: 'vrach' },
+    { id: 'vrach-active', title: 'Активный партнёр',      role: 'vrach' },
+    { id: 'admin',        title: 'Администратор клиники', role: 'admin' }
   ];
+
+  /* Главная своей роли: сюда уводит переключение на сценарий чужого кабинета.
+     Живёт здесь, а не в Shell, потому что роль знает сценарий. */
+  var HOME = { patient: 'kabinet.html', vrach: 'vrach.html', admin: 'admin-tablo.html' };
 
   /* Люди прототипа: id проверяются так же, как сценарии. Сами карточки — в mock.js. */
   var PERSONS = ['self', 'child', 'parent'];
@@ -59,7 +71,7 @@
     var q = w.location.search;
     if (!q) { return; }
     var changed = false;
-    var sc = /[?&]scenario=([a-z]+)/.exec(q);
+    var sc = /[?&]scenario=([a-z-]+)/.exec(q);
     if (sc && byId(SCENARIOS, sc[1])) { state.scenario = sc[1]; changed = true; }
     var pr = /[?&]person=([a-z]+)/.exec(q);
     if (pr && PERSONS.indexOf(pr[1]) > -1) { state.person = pr[1]; changed = true; }
@@ -71,9 +83,27 @@
     return null;
   }
 
+  function roleOf(id) {
+    var s = byId(SCENARIOS, id);
+    return s ? s.role : 'patient';
+  }
+
   var Store = {
-    /** Список сценариев для панели прототипа: [{id, title}]. */
-    scenarios: function () { return clone(SCENARIOS); },
+    /** Сценарии для панели прототипа: [{id, title, role}]. Без аргумента —
+        набор той роли, чей сценарий сейчас выбран: панель кабинета пациента
+        не предлагает сценарии врача, и наоборот. Ролевой фильтр — дело Store:
+        Shell спрашивает набор, а не собирает его сам. */
+    scenarios: function (role) {
+      var want = role || roleOf(state.scenario);
+      return clone(SCENARIOS).filter(function (s) { return s.role === want; });
+    },
+
+    /** Роль текущего сценария: 'patient', 'vrach' или 'admin'. */
+    role: function () { return roleOf(state.scenario); },
+    /** Роль любого сценария по его id — тем, кто сверяет чужой с текущим. */
+    roleOf: roleOf,
+    /** Главная страница роли: куда уводит переключение на чужой сценарий. */
+    home: function (role) { return HOME[role || roleOf(state.scenario)] || HOME.patient; },
 
     scenario: function () { return state.scenario; },
     setScenario: function (id) {

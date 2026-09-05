@@ -19,6 +19,34 @@
     { id: 'vhod',         href: 'index.html',        icon: 'logout',         title: 'Выйти' }
   ];
 
+  /* Кабинет врача-партнёра и панель клиники: свои наборы пунктов. Иконки —
+     из общего набора icons.js, своих не заводим. Набор выбирает mount по
+     role; без role он остаётся пациентским, и уже собранные экраны про эту
+     правку не знают. */
+  var NAV_VRACH = [
+    { id: 'vrach',            href: 'vrach.html',            icon: 'home',          title: 'Главная' },
+    { id: 'vrach-zayavki',    href: 'vrach-zayavki.html',    icon: 'calendar-check', title: 'Мои направления' },
+    { id: 'vrach-napravlenie', href: 'vrach-napravlenie.html', icon: 'calendar-plus', title: 'Направить пациента' },
+    { id: 'vrach-bonusy',     href: 'vrach-bonusy.html',     icon: 'card',          title: 'Бонусы' },
+    { id: 'vrach-profil',     href: 'vrach-profil.html',     icon: 'user',          title: 'Профиль' },
+    { id: 'vhod',             href: 'index.html',            icon: 'logout',        title: 'Выйти' }
+  ];
+
+  var NAV_ADMIN = [
+    { id: 'admin-tablo',    href: 'admin-tablo.html',    icon: 'calendar-check', title: 'Табло заявок' },
+    { id: 'admin-partnery', href: 'admin-partnery.html', icon: 'user',           title: 'Партнёры' },
+    { id: 'vhod',           href: 'index.html',          icon: 'logout',         title: 'Выйти' }
+  ];
+
+  var NAV_BY_ROLE = { patient: NAV, vrach: NAV_VRACH, admin: NAV_ADMIN };
+
+  /* Кто открыл кабинет. Ставится в mount и читается шапкой и меню: без него
+     каждая часть каркаса заново гадала бы роль по сценарию, а сценарий
+     переключается панелью. */
+  var role = 'patient';
+
+  function navSet(r) { return NAV_BY_ROLE[r] || NAV; }
+
   /* Реестр действий. Экран регистрирует свои через Shell.on(act, fn);
      клик по data-act без обработчика не молчит, а показывает окно —
      и попадает в отчёт прибора как мёртвая кнопка. */
@@ -104,8 +132,34 @@
     return document.title.split('—')[0].trim() || 'экран';
   }
 
-  /* --- шапка ----------------------------------------------------------- */
+  /* --- шапка -----------------------------------------------------------
+     У кабинета врача и панели клиники нет переключателя людей: человек там
+     один — сам партнёр или администратор. Пилюли рисуются только пациенту,
+     и DATA.people() зовётся только там: в mock-vrach.js этой функции нет
+     и быть не должно. */
+  function partnerHeader(title, who) {
+    return el(
+      '<header class="shell-header">' +
+        '<a class="brand" href="' + esc(navSet(role)[0].href) + '">' +
+          '<img class="brand__logo" src="assets/logo-fakt.png" alt="Клиника ФАКТ, глазная клиника" ' +
+          'width="270" height="90"></a>' +
+        '<span class="shell-header__divider"></span>' +
+        '<span class="shell-header__title">' + esc(title) + '</span>' +
+        '<span class="shell-header__spacer"></span>' +
+        '<span class="shell-header__who" id="shell-who">' + esc(who) + '</span>' +
+        '<span class="shell-header__divider"></span>' +
+        '<a class="btn btn--secondary btn--sm" href="index.html">' + icon('logout') + 'Выйти</a>' +
+      '</header>');
+  }
+
   function header() {
+    if (role === 'vrach') {
+      var p = w.DATA && w.DATA.partner ? w.DATA.partner() : null;
+      return partnerHeader('Кабинет врача-партнёра', p ? p.name : 'Врач-партнёр');
+    }
+    if (role === 'admin') {
+      return partnerHeader('Панель клиники', 'Администратор клиники');
+    }
     var people = w.DATA ? w.DATA.people() : [];
     var current = w.Store ? w.Store.person() : 'self';
     var pills = people.map(function (p) {
@@ -128,7 +182,7 @@
   }
 
   function nav(active) {
-    return el('<nav class="shell-nav" aria-label="Разделы кабинета">' + NAV.map(function (n) {
+    return el('<nav class="shell-nav" aria-label="Разделы кабинета">' + navSet(role).map(function (n) {
       return '<a class="nav-item' + (n.id === active ? ' is-active' : '') + '" href="' + n.href + '"' +
         (n.id === active ? ' aria-current="page"' : '') + '>' + icon(n.icon) + '<span>' + n.title + '</span></a>';
     }).join('') + '</nav>');
@@ -182,6 +236,12 @@
   function panel() {
     var scenarios = w.Store.scenarios(), current = w.Store.scenario(), flags = w.Store.flags();
     var remarks = w.Store.remarks().length;
+    /* Два органа панели принадлежат кабинету пациента: приглашение знакомого
+       живёт на экране лояльности, отменённые записи — в визитах. В кабинете
+       врача и в панели клиники ни того, ни другого нет, и оба тумблера там
+       не делают ничего: заказчик жмёт и читает молчание как поломку. Роль
+       берётся из сценария — она же решает набор меню и набор сценариев. */
+    var patient = w.Store.role() === 'patient';
     return el(
       '<div class="proto-panel" id="proto-panel">' +
         '<div class="proto-panel__group">' +
@@ -191,15 +251,19 @@
               (s.id === current ? ' checked' : '') + '><span>' + s.title + '</span></label>';
           }).join('') + '</div>' +
         '</div>' +
-        '<div class="proto-panel__group">' +
-          '<label class="choice"><input type="checkbox" id="proto-invite"' + (flags.invite ? ' checked' : '') + '>' +
-          '<span>Показать блок приглашения знакомого</span></label>' +
-        '</div>' +
+        (patient
+          ? '<div class="proto-panel__group">' +
+              '<label class="choice"><input type="checkbox" id="proto-invite"' + (flags.invite ? ' checked' : '') + '>' +
+              '<span>Показать блок приглашения знакомого</span></label>' +
+            '</div>'
+          : '') +
         '<div class="proto-panel__group stack--tight">' +
           '<button class="btn btn--secondary btn--sm btn--block" type="button" data-act="copy-remarks">' +
             'Скопировать все замечания' + (remarks ? ' (' + remarks + ')' : '') + '</button>' +
-          '<button class="btn btn--secondary btn--sm btn--block" type="button" data-act="restore-cancels">' +
-            'Вернуть расписание как было</button>' +
+          (patient
+            ? '<button class="btn btn--secondary btn--sm btn--block" type="button" data-act="restore-cancels">' +
+                'Вернуть расписание как было</button>'
+            : '') +
           '<button class="btn btn--secondary btn--sm btn--block" type="button" data-act="reset">Сбросить прототип</button>' +
         '</div>' +
         '<p class="proto-panel__note">Сброс возвращает демо-данные к началу и не трогает замечания. ' +
@@ -216,8 +280,12 @@
     document.querySelectorAll('input[name="proto-scenario"]').forEach(function (r) {
       r.addEventListener('change', function () { w.Store.setScenario(r.value); reloadPage(); });
     });
+    /* Тумблера приглашения в панели врача и клиники нет вовсе — слушателю
+       не за что цепляться, и его отсутствие здесь штатное, а не сбой. */
     var inv = document.getElementById('proto-invite');
-    inv.addEventListener('change', function () { w.Store.setFlag('invite', inv.checked); });
+    if (inv) {
+      inv.addEventListener('change', function () { w.Store.setFlag('invite', inv.checked); });
+    }
   }
 
   /* --- замечания -------------------------------------------------------
@@ -316,7 +384,7 @@
       e.preventDefault();
       w.Render.soon();
     });
-    w.addEventListener('resize', function () { reportWidth(); });
+    w.addEventListener('resize', function () { relayout(); reportWidth(); });
   }
 
   /** Перечитать экран после ручного переключения сценария, человека или отметки.
@@ -502,6 +570,37 @@
      это минуты на экран. */
   var CONTROLS = 'button, a[href], input, select, textarea, [data-act], [data-soon]';
 
+  /** Горизонтальная полоса, в которой орган управления ВИДЕН: его коробка,
+      обрезанная по каждому предку, который сам прокручивает содержимое вбок
+      (--scroll-x: 1). Пусто — на экране органа нет вовсе.
+
+      Нужна ровно правилам про плавающую обвязку. Они судят по координатам
+      РАЗМЕТКИ, а прокрутка предка их не двигает: колонка широкой таблицы,
+      уехавшая за край своей обёртки, числилась под панелью прототипа, хотя
+      на экране её там нет. Прибор требовал держать кнопки только в первой
+      колонке — правило не про вёрстку, а про его собственную слепоту.
+
+      Ослабление точечное и одностороннее: у органа, который виден целиком,
+      полоса совпадает с его коробкой, и настоящее перекрытие на неподвижной
+      странице находится по-прежнему. У наполовину уехавшего судим по видимой
+      половине — нажать можно только её. Тот же признак --scroll-x, что уже
+      спрашивает нога замера ширин: два прибора смотрят на узел одинаково. */
+  function visibleLane(node, r) {
+    var left = r.left, right = r.right, p = node.parentElement;
+    while (p && p !== document.documentElement) {
+      if (ownsOverflowX(p)) {
+        var box = p.getBoundingClientRect();
+        if (box.width) {
+          if (box.left > left) { left = box.left; }
+          if (box.right < right) { right = box.right; }
+          if (left >= right) { return null; }
+        }
+      }
+      p = p.parentElement;
+    }
+    return { left: left, right: right };
+  }
+
   function floating() {
     var sx = w.pageXOffset || 0, sy = w.pageYOffset || 0;
     var nodes = document.body.querySelectorAll('*');
@@ -522,8 +621,10 @@
       if (inside) { continue; }
       r = node.getBoundingClientRect();
       if (!r.width || !r.height) { continue; }
+      var lane = visibleLane(node, r);
+      if (!lane) { continue; }
       controls.push({
-        left: r.left + sx, right: r.right + sx, top: r.top + sy, bottom: r.bottom + sy,
+        left: lane.left + sx, right: lane.right + sx, top: r.top + sy, bottom: r.bottom + sy,
         who: tagOf(node) + ' «' + String(node.textContent || '').trim().slice(0, 20) + '»'
       });
     }
@@ -553,8 +654,16 @@
   /** Кого накрывает плавающая обвязка при заданной прокрутке. Отдельный
       прибор от stuck(): тот спрашивает «есть ли хоть одна свободная позиция»
       и на длинной странице находит её почти всегда — ровно тот случай, ради
-      которого кладётся полоса внизу, из него и выпадал. Самый низ прокрутки
-      проверяется одним замером и по-честному. */
+      которого кладётся полоса внизу, из него и выпадал.
+
+      Правило одно на обе позиции — стартовый вид и самый низ прокрутки.
+      Раньше стартовый вид судил по середине органа (swallowed): накрытый
+      с угла считался нажимаемым. Довод был про обвязку шириной 299 px,
+      которая краем задевала всё у правого поля; обвязка давно 40 px и
+      висит в углу, а слепое пятно осталось — широкая кнопка, у которой под
+      обвязкой оказался край, а середина левее, не ловилась ничем, хотя
+      сплошное пересечение на максимальной прокрутке считалось находкой.
+      Двух правил для одного явления больше нет. */
   function coveredAt(f, scroll) {
     var out = [];
     if (!f || f.opened) { return out; }
@@ -573,36 +682,6 @@
 
   /** Самая нижняя позиция прокрутки страницы. */
   function maxScrollOf(f) { return Math.max(0, f.height - f.viewport.height); }
-
-  /** Органы управления, до центра которых на этой прокрутке не дотянуться:
-      обвязка накрыла середину кнопки, и мышь попадает в обвязку, а не в неё.
-
-      Отдельное правило от stuck(): тот спрашивает «есть ли хоть одна позиция
-      прокрутки, где орган свободен», и на длинной странице находит её почти
-      всегда. Заказчик страницу не крутит: он видит стартовый вид и жмёт —
-      а на лечении кнопка «Отметить» у строки 21:00 была накрыта целиком,
-      и прибор молчал, потому что прокрутка её освобождала.
-
-      Судим по центру, а не по любому пересечению: обвязка плавает над
-      колонкой, которая на всех ширинах доходит почти до края окна, и краем
-      задевает всё, что стоит у правого поля. Кнопка, накрытая с угла,
-      нажимается; кнопка, у которой накрыт центр, — нет. */
-  function swallowed(f, scroll) {
-    var out = [];
-    if (!f || f.opened) { return out; }
-    f.controls.forEach(function (c) {
-      if (out.length >= 5) { return; }
-      var cx = (c.left + c.right) / 2, cy = (c.top + c.bottom) / 2 - scroll;
-      if (cy < 0 || cy > f.viewport.height) { return; }
-      f.fixed.forEach(function (b) {
-        if (out.length >= 5) { return; }
-        if (cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom) {
-          out.push(b.who + ' накрывает середину ' + c.who);
-        }
-      });
-    });
-    return out;
-  }
 
   function stuck(f) {
     var out = [];
@@ -630,6 +709,212 @@
       if (seen[i] && !free[i] && out.length < 5) { out.push('до него не добраться: ' + c.who); }
     });
     return out;
+  }
+
+  /* --- подписи, наехавшие друг на друга ----------------------------------
+     Третий слепой угол замера. Он спрашивает две вещи: не уходит ли содержимое
+     за правый край и влезает ли текст в свою ячейку. Подпись, поставленную
+     абсолютным позиционированием от своей доли, обе проверки пропускают:
+     коробка у неё ровно по тексту, за край страницы она не выходит, а то, что
+     соседняя подпись стоит на том же месте, геометрия ячейки не описывает.
+     Так на линейке сравнения «этот врач и ещё 3 партнёра · 25 %» и «1 партнёр
+     · 36 %» стояли друг на друге при полностью зелёном прогоне: нашёл это
+     глаз, а не прибор.
+
+     Правило узкое намеренно. Сравниваются только элементы с СОБСТВЕННЫМ
+     текстом, вынутые из потока position: absolute, и только между собой
+     внутри одного позиционированного родителя. Широкое правило — «никакие две
+     коробки с текстом не пересекаются» — краснеет на верной вёрстке: строка
+     внутри карточки лежит внутри коробки карточки, и это норма, а не наезд. */
+  var COLLIDE_GAP = 2;   /* касание по волоску наездом не считаем */
+
+  /** Собственный текст элемента: без текста детей. Обёртка, внутри которой
+      лежит подпись, иначе считалась бы второй подписью на том же месте. */
+  function ownText(node) {
+    var s = '';
+    for (var i = 0; i < node.childNodes.length; i++) {
+      var c = node.childNodes[i];
+      if (c.nodeType === 3) { s += c.nodeValue; }
+    }
+    return s.replace(/\s+/g, ' ').trim();
+  }
+
+  function collide() {
+    var out = [], groups = [], hosts = [];
+    var all = document.body.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var node = all[i];
+      if (!node.getBoundingClientRect) { continue; }
+      var st = w.getComputedStyle(node);
+      if (st.position !== 'absolute' || st.visibility === 'hidden') { continue; }
+      if (!ownText(node)) { continue; }
+      var r = node.getBoundingClientRect();
+      if (!r.width || !r.height) { continue; }
+      var host = node.offsetParent || document.body;
+      var k = hosts.indexOf(host);
+      if (k < 0) { k = hosts.length; hosts.push(host); groups.push([]); }
+      groups[k].push({ el: node, r: r });
+    }
+    groups.forEach(function (g) {
+      for (var a = 0; a < g.length; a++) {
+        for (var b = a + 1; b < g.length; b++) {
+          if (out.length >= 5) { return; }
+          var x = Math.min(g[a].r.right, g[b].r.right) - Math.max(g[a].r.left, g[b].r.left);
+          var y = Math.min(g[a].r.bottom, g[b].r.bottom) - Math.max(g[a].r.top, g[b].r.top);
+          if (x > COLLIDE_GAP && y > COLLIDE_GAP) {
+            out.push('«' + ownText(g[a].el).slice(0, 22) + '» и «' + ownText(g[b].el).slice(0, 22) +
+              '» наехали на ' + Math.round(x) + '×' + Math.round(y) + ' px');
+          }
+        }
+      }
+    });
+    return out;
+  }
+
+  /* --- содержимое, севшее на рамку карточки ------------------------------
+     Четвёртый слепой угол. `.card` в каноне не несёт отступов вовсе — только
+     фон, рамку и скругление; отступы даёт `.card__body` или модификатор
+     (`--table`, `--zones`). Экран, положивший свою сетку прямо в голый
+     `.card`, получает содержимое, стоящее на рамке, — и ни одна проверка
+     этого не видит: за край страницы ничего не уходит, в свою ячейку всё
+     влезает, подписи друг на друга не наезжают. Ровно так выглядела вся
+     карточка партнёра: четыре блока из пяти сидели на рамке вплотную.
+
+     Меряем не отступ, а расстояние от рамки до ближайшего СОБСТВЕННОГО
+     текста — правило переживает любую внутреннюю сетку. Порог низкий
+     намеренно: он отделяет «стоит на рамке» от «стоит тесно», а не сторожит
+     канонические 24 px. Тесную вёрстку решает глаз, севшую на рамку — прибор. */
+  var CARD_INSET = 6;
+
+  /** Коробка САМОГО ТЕКСТА, а не элемента. Абзац сноски растянут на всю
+      карточку и своё поле держит внутренним отступом: по коробке элемента он
+      выглядит севшим на рамку, хотя текст стоит в 20 px от неё. Первая версия
+      правила мерила коробку и краснела на исправной вёрстке документов — на
+      всех пятнадцати ширинах. */
+  function textBox(node) {
+    var box = null;
+    for (var i = 0; i < node.childNodes.length; i++) {
+      var t = node.childNodes[i];
+      if (t.nodeType !== 3 || !String(t.nodeValue).trim()) { continue; }
+      var rng = document.createRange();
+      rng.selectNodeContents(t);
+      var rects = rng.getClientRects();
+      for (var j = 0; j < rects.length; j++) {
+        var r = rects[j];
+        if (!r.width || !r.height) { continue; }
+        box = box ? {
+          left: Math.min(box.left, r.left), right: Math.max(box.right, r.right),
+          top: Math.min(box.top, r.top), bottom: Math.max(box.bottom, r.bottom)
+        } : { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      }
+    }
+    return box;
+  }
+
+  function flush() {
+    var out = [], cards = document.querySelectorAll('.card');
+    for (var i = 0; i < cards.length; i++) {
+      if (out.length >= 5) { break; }
+      var card = cards[i], cr = card.getBoundingClientRect();
+      if (!cr.width || !cr.height) { continue; }
+      var kids = card.querySelectorAll('*'), worst = null;
+      for (var j = 0; j < kids.length; j++) {
+        var k = kids[j];
+        if (!ownText(k)) { continue; }
+        /* Вложенная карточка судится своей рамкой, а не этой. */
+        if (k.closest('.card') !== card) { continue; }
+        /* Подпись для чтения с экрана унесена за пределы вида нарочно —
+           её коробка лежит в −260 px от карточки, и по ней правило краснело
+           на исправной вёрстке. Глазами её нет, значит и правилу её нет. */
+        if (k.closest('.visually-hidden')) { continue; }
+        /* Внутри горизонтальной прокрутки близость к краю — норма: за край
+           отвечает сам контейнер, и его меряет другая нога замера. */
+        if (scrollClipper(k)) { continue; }
+        var r = textBox(k);
+        if (!r) { continue; }
+        var d = Math.min(r.left - cr.left, cr.right - r.right,
+                         r.top - cr.top, cr.bottom - r.bottom);
+        if (worst === null || d < worst.d) { worst = { d: d, el: k }; }
+      }
+      if (worst && worst.d < CARD_INSET) {
+        out.push('«' + ownText(worst.el).slice(0, 22) + '» стоит в ' +
+          Math.round(worst.d) + ' px от рамки карточки');
+      }
+    }
+    return out;
+  }
+
+  /* --- слово, разрезанное посреди себя -----------------------------------
+     Пятый слепой угол. `.pk-cell` и её родня объявляют overflow-wrap: anywhere,
+     чтобы длинное слово не рвало колонку. Правило работает: колонка цела,
+     переполнения нет, в ячейку всё влезает — и «Краснодар» стоит в таблице
+     как «Краснода / р». Для всех проверок выше это исправная вёрстка.
+
+     Меряем прямо: слово, разрезанное переносом, даёт ДВА прямоугольника вместо
+     одного. Range по слову отвечает на это без арифметики шрифтов. Смотрим
+     только там, где разрыв вообще разрешён вычисленным стилем, — иначе обход
+     стоил бы полный документ на каждую ширину матрицы. */
+  var BREAKY = /anywhere|break-word|break-all/;
+  /* Дефис и косая — законные места переноса: «445-12-08», разложенное на две
+     строки после дефиса, набрано правильно, а не разрезано. Считать их частью
+     слова значило бы краснеть на верной типографике, а ложное красное дороже
+     ложного зелёного. Слово — то, что между пробелами, дефисами и косыми. */
+  var WORD = /[^\s\u00a0\-\u2010\u2011\u2013\u2014\/]+/g;
+
+  function broken() {
+    var out = [], all = document.body.querySelectorAll('*');
+    for (var i = 0; i < all.length && out.length < 5; i++) {
+      var node = all[i];
+      if (!ownText(node) || node.closest('.visually-hidden')) { continue; }
+      var st = w.getComputedStyle(node);
+      if (!BREAKY.test(st.overflowWrap + ' ' + st.wordBreak + ' ' + st.wordWrap)) { continue; }
+      for (var j = 0; j < node.childNodes.length && out.length < 5; j++) {
+        var t = node.childNodes[j];
+        if (t.nodeType !== 3) { continue; }
+        var text = t.nodeValue, m;
+        WORD.lastIndex = 0;
+        while ((m = WORD.exec(text))) {
+          /* Слово из одной буквы разрезать нечем. */
+          if (m[0].length < 2) { continue; }
+          var rng = document.createRange();
+          rng.setStart(t, m.index);
+          rng.setEnd(t, m.index + m[0].length);
+          var parts = rng.getClientRects();
+          if (parts.length > 1) {
+            /* Находка без чисел не чинится: нужна колонка и то, сколько ей
+               не хватило. Ширину слова берём как сумму его кусков — сам он
+               уже разрезан, и одним прямоугольником его не измерить. */
+            var need = 0;
+            for (var n = 0; n < parts.length; n++) { need += parts[n].width; }
+            /* Строку меряем у того, кто её и образует, — у самого элемента
+               с текстом, по внутренней коробке. Предок отвечает не за ту
+               ширину: сначала здесь стоял closest('td, th, li, div'), и он
+               докладывал 478 px там, где строке доставалось 259. */
+            var ns = w.getComputedStyle(node);
+            var line = node.clientWidth - (parseFloat(ns.paddingLeft) || 0) -
+              (parseFloat(ns.paddingRight) || 0);
+            out.push('«' + m[0] + '» разрезано в ' + tagOf(node) + ': слову нужно ' +
+              Math.round(need) + ' px, строке дано ' + Math.round(line) + ' px');
+            break;
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  /* --- раскладка, которую нельзя посчитать заранее ------------------------
+     Экран, который ставит подписи от измеренной ширины текста, обязан
+     пересчитать их после каждого изменения ширины окна — и обязан успеть
+     сделать это ДО того, как прибор снимет замер. Поэтому проход регистрируют
+     здесь, а не своим слушателем resize на странице: порядок «сначала
+     разложить, потом мерить» держит одно место. */
+  var layoutFns = [];
+
+  function relayout() {
+    for (var i = 0; i < layoutFns.length; i++) {
+      try { layoutFns[i](); } catch (e) { /* проход экрана не роняет каркас */ }
+    }
   }
 
   function reportWidth(force) {
@@ -667,20 +952,44 @@
     document.body.setAttribute('data-dock-lane', dockLane());
     document.body.setAttribute('data-shell-align', shellAlign());
     document.body.setAttribute('data-stuck', stuck(f).join(' | '));
-    document.body.setAttribute('data-covered-start', swallowed(f, 0).join(' | '));
+    document.body.setAttribute('data-covered-start', coveredAt(f, 0).join(' | '));
     document.body.setAttribute('data-covered-end', coveredAt(f, maxScrollOf(f)).join(' | '));
     document.body.setAttribute('data-widest', Math.ceil(max) + ' ' + who);
     document.body.setAttribute('data-viewport', w.innerWidth);
     document.body.setAttribute('data-overflow', over.join(' | '));
+    var coll = collide();
+    document.body.setAttribute('data-collide', coll.join(' | '));
+    var flat = flush();
+    document.body.setAttribute('data-flush', flat.join(' | '));
+    var cut = broken();
+    document.body.setAttribute('data-broken', cut.join(' | '));
     document.body.setAttribute('data-live-acts', Object.keys(ACTS).join(' '));
     document.body.setAttribute('data-dead-acts', Object.keys(deadActs).join(' '));
-    return { widest: Math.ceil(max), who: who, viewport: w.innerWidth, overflow: over, floating: f };
+    return { widest: Math.ceil(max), who: who, viewport: w.innerWidth, overflow: over,
+             collide: coll, flush: flat, broken: cut, floating: f };
   }
 
   var Shell = {
-    /** active — id пункта меню; bare: true — экран без шапки и меню (вход). */
+    /** active — id пункта меню; role — чей кабинет ('vrach', 'admin'; без него
+        пациентский, как было); bare: true — экран без шапки и меню (вход). */
     mount: function (o) {
       o = o || {};
+      role = NAV_BY_ROLE[o.role] ? o.role : 'patient';
+      /* Сценарий один на прототип, а кабинета два: панель могли переключить
+         на чужой сценарий в соседней вкладке или принести его адресом.
+         Тогда экран не остаётся пустым, а уводит на главную той роли, чей
+         сценарий выбран. Экранов без каркаса это не касается: вход и
+         регистрация role-нейтральны. */
+      if (!o.bare && w.Store && w.Store.role && w.Store.role() !== role) {
+        var target = w.Store.home(w.Store.role());
+        /* На себя не уводим. Экран, который сам и есть главная этой роли, но
+           смонтирован без неё, иначе переходил бы сам на себя без конца:
+           описка в role у одного экрана — петля перезагрузок на глазах
+           у заказчика, и по чему её искать, непонятно. Не совпало — просто
+           монтируемся, меню при этом окажется чужим, и это видно. */
+        var here = String(w.location.pathname).split('/').pop();
+        if (target !== here) { w.location.href = target; return false; }
+      }
       registerShellActs();
       var page = document.getElementById('page');
       if (!o.bare && page) {
@@ -707,7 +1016,14 @@
       return Shell;
     },
     /** Замер для прибора: самый правый край содержимого и ширина окна. */
-    measure: function () { return reportWidth(true); },
+    measure: function () { relayout(); return reportWidth(true); },
+    /** Проход раскладки экрана: считается сразу и на каждом изменении ширины.
+        Для того, что нельзя посчитать в CSS, — например разложить по рядам
+        подписи, ширина которых известна только после вёрстки. */
+    onLayout: function (fn) { layoutFns.push(fn); fn(); },
+    collide: collide,
+    flush: flush,
+    broken: broken,
     /** Действия, у которых есть обработчик на этой странице. */
     acts: function () { return Object.keys(ACTS); },
     /** Плавающая обвязка и органы управления — для проверки перекрытий. */
@@ -715,7 +1031,6 @@
     /** Органы управления, до которых из-за плавающей обвязки не добраться. */
     stuck: stuck,
     /** Кого обвязка накрыла по центру на заданной прокрутке. */
-    swallowed: swallowed,
     /** Кого накрывает плавающая обвязка при заданной прокрутке. */
     coveredAt: coveredAt,
     /** Самая нижняя позиция прокрутки. */
@@ -725,7 +1040,10 @@
     shellAlign: shellAlign,
     /** Имя человека для приветствия: тот же источник, что у пилюли в шапке. */
     greetName: greetNameOf,
-    nav: function () { return NAV.slice(); }
+    /** Пункты меню роли: без аргумента — той, с которой смонтирован экран. */
+    nav: function (r) { return navSet(r || role).slice(); },
+    /** Роль, с которой смонтирован экран. */
+    role: function () { return role; }
   };
 
   w.Shell = Shell;

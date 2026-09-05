@@ -16,6 +16,20 @@
   }
   function icon(name, cls) { return w.icon ? w.icon(name, cls) : ''; }
 
+  /** Значение с местом переноса. Адрес почты — одно слово без пробелов, и
+      браузер рвёт его там, где кончилась строка: «m.sokolova@examp / le.com».
+      Ставим одно законное место разрыва — после «@»: имя и домен переносятся
+      целиком, а не разрезаются посреди себя.
+
+      Только «@» и только у адресов. Точки не трогаем: разрыв после точки
+      разложил бы на части и дату «03.09.2026», и любое предложение. Перенос
+      мягкий — там, где адрес влезает в строку, он остаётся одним куском,
+      и в буфер копируется тоже целиком: <wbr> не добавляет ни одного символа. */
+  function soft(v) {
+    var out = esc(v);
+    return out.indexOf('@') < 0 ? out : out.replace(/@/g, '@<wbr>');
+  }
+
   /* Согласие, которое гасит все каналы разом, и подписи каналов. Опознание
      идёт по ключу, а не по русской фразе: фразу пишет клиника и меняет когда
      захочет. Подписи принадлежат читателю — шов отдаёт код канала. */
@@ -212,8 +226,118 @@
     return i < 0 ? { title: s, note: '' } : { title: String(s).slice(0, i), note: String(s).slice(i + 3) };
   }
 
+  /* --- Направление партнёра: тон, лестница и оформление -------------------
+     Блоки ниже общие для кабинета врача и панели клиники: их зовут «Мои
+     направления», главная врача, табло заявок и реестр партнёров. */
+
+  /* Тон плашки по статусу. Сам перечень статусов принадлежит клинике и лежит
+     в шве: здесь только цвет, названия отсюда не берутся. */
+  var REFERRAL_TONE = {
+    created: 'quiet', booked: 'warn', served: 'ok', accrued: 'ok',
+    noshow: 'off', cancelled: 'off'
+  };
+
+  function ladder() { return (w.DATA && w.DATA.statuses) ? w.DATA.statuses() : []; }
+
+  /** Ступени лестницы — те, что клиника пометила ступенями. Закрывающие
+      исходы в ряд не встают: они его обрывают. */
+  function ladderSteps() {
+    return ladder().filter(function (s) { return s.step; });
+  }
+
+  function step(cls, ico, title, when) {
+    return '<li class="ladder__step ' + cls + '">' +
+      '<span class="ladder__dot">' + icon(ico, 'ic--sm') + '</span>' +
+      '<span class="ladder__body"><span class="ladder__title strong">' + esc(title) + '</span>' +
+      (when ? '<span class="ladder__when muted">' + esc(when) + '</span>' : '') +
+      '</span></li>';
+  }
+
+  /* Время в журнале — только настоящее. Демо-данные знают день, а не час, и
+     «00:00» у каждой записи читается как точность, которой в них нет.
+     Записи, сделанные в самом прототипе, время несут и показывают его. */
+  function logWhen(iso) {
+    var d = new Date(iso);
+    return Fmt.exact(iso) + ((d.getHours() || d.getMinutes()) ? ', ' + Fmt.time(iso) : '');
+  }
+
+  function fact(label, value) {
+    return '<div class="ref-facts__cell"><p class="label">' + esc(label) + '</p>' +
+      '<p class="ref-facts__value">' + value + '</p></div>';
+  }
+
+  function block(title, body) {
+    return '<div class="ref-block"><p class="label">' + esc(title) + '</p>' + body + '</div>';
+  }
+
+  /* --- широкая карточка направления: полоса фактов на зоны -----------------
+     Факт здесь трёхэтажный: прописная подпись, значение и тихое уточнение
+     под ним — «4 500 ₽ по прайсу клиники», «42 дня назад». Уточнение и есть
+     то, ради чего полоса встала зонами: те же пять фактов без него занимали
+     две строки в столбик и ничего не объясняли. */
+  function factWide(label, value, sub, cls) {
+    return '<div class="zones__cell ref-zones__cell' + (cls ? ' ' + esc(cls) : '') + '">' +
+      '<p class="label">' + esc(label) + '</p>' +
+      '<p class="ref-zones__value">' + value + '</p>' +
+      (sub ? '<p class="ref-zones__sub muted">' + sub + '</p>' : '') + '</div>';
+  }
+
+  var DASH = '<span class="muted">—</span>';
+
+  /** Клиника словами справочника: название и адрес. Ни того, ни другого экран
+      не сочиняет — незаполненный адрес остаётся видимой заглушкой шва. */
+  function clinicOf(r) {
+    var found = null;
+    ((w.DATA && w.DATA.clinics) ? w.DATA.clinics() : []).forEach(function (c) {
+      if (c.id === r.clinicId) { found = c; }
+    });
+    return found;
+  }
+
+  /** Дата ступени «услуга оказана»: сумма появилась не сама по себе. */
+  function stepAt(r, id) {
+    var at = null;
+    (r.steps || []).forEach(function (s) { if (s.id === id) { at = s.at; } });
+    return at;
+  }
+
+  function wideFacts(r, bonus, own) {
+    var c = clinicOf(r);
+    var served = stepAt(r, 'served');
+    var cells =
+      factWide('Услуга', esc(r.serviceTitle),
+        r.servicePrice ? esc(Fmt.money(r.servicePrice)) + ' по прайсу клиники' : '') +
+      factWide('Клиника', esc(c ? c.title : r.clinicCity),
+        esc(r.clinicCity + (c && c.address ? ', ' + c.address : ''))) +
+      (own ? '' : factWide('Направил',
+        esc(Render.referralPartnerName(r)) || DASH, '')) +
+      factWide('Направлен', esc(Fmt.exact(r.createdAt)), esc(Fmt.relative(r.createdAt))) +
+      factWide('Сумма услуги', r.amount ? esc(Fmt.money(r.amount)) : DASH,
+        r.amount
+          ? (served ? 'услуга оказана ' + esc(Fmt.exact(served)) : '')
+          : 'появится, когда услуга оказана') +
+      /* Начисление и здесь выходит только вместе с подписью: значение —
+         число, уточнение — слова шва про демонстрационную ставку. */
+      factWide('Начислено', (r.bonus || r.bonus === 0) ? esc(Fmt.money(r.bonus)) : DASH,
+        (r.bonus || r.bonus === 0)
+          ? (esc(Render.referralBonusNote(r)) || esc('[уточняется]'))
+          : 'появится, когда клиника рассчитает бонус');
+    return '<div class="zones ref-zones' + (own ? '' : ' ref-zones--author') + '">' + cells + '</div>';
+  }
+
+  /** Пояснение справа от заголовка «Путь пациента». Говорит, откуда взялись
+      ступени, и не обещает четырёх, когда путь оборван закрывающим исходом. */
+  function wayAside(r) {
+    var ids = ladderSteps().map(function (s) { return s.id; });
+    var stopped = (r.steps || []).some(function (s) { return ids.indexOf(s.id) < 0; });
+    if (stopped) { return 'путь закрыт клиникой'; }
+    var n = ids.length;
+    return n + ' ' + Fmt.plural(n, 'ступень', 'ступени', 'ступеней') + ' из лестницы клиники';
+  }
+
   var Render = {
     esc: esc,
+    soft: soft,
     fmt: Fmt,
     nextDose: nextDose,
     initials: initials,
@@ -540,9 +664,7 @@
     section: function (o) {
       o = o || {};
       return '<section class="section' + (o.cls ? ' ' + esc(o.cls) : '') + '">' +
-        '<div class="section__head"><h2 class="label">' + esc(o.title) + '</h2>' +
-        (o.aside ? '<span class="section__aside">' + esc(o.aside) + '</span>' : '') + '</div>' +
-        (o.body || '') + '</section>';
+        Render.sectionHead(o) + (o.body || '') + '</section>';
     },
 
     /** Крупная карточка записи: дата и время, врач, клиника, адрес, действия. */
@@ -661,17 +783,25 @@
     emptyState: function (o) {
       o = o || {};
       var action = '';
+      /* Вид кнопки решает зовущий: у пустого кабинета это главное зелёное действие
+         («направить пациента»), у пустого отбора — тихий возврат к полному
+         списку. Зелёная кнопка на втором случае обещает работу там, где надо
+         всего лишь снять фильтр. */
+      var btn = 'btn ' + (o.action && o.action.cls ? esc(o.action.cls) : 'btn--primary');
       if (o.action) {
         if (o.action.href) {
-          action = '<a class="btn btn--primary" href="' + esc(o.action.href) + '">' + esc(o.action.text) + '</a>';
+          action = '<a class="' + btn + '" href="' + esc(o.action.href) + '">' + esc(o.action.text) + '</a>';
         } else if (o.action.act) {
           /* Экран обязан зарегистрировать это действие: Shell.on(act, fn). */
-          action = '<button class="btn btn--primary" data-act="' + esc(o.action.act) + '">' + esc(o.action.text) + '</button>';
+          action = '<button class="' + btn + '" data-act="' + esc(o.action.act) + '">' + esc(o.action.text) + '</button>';
         } else {
-          action = '<button class="btn btn--primary" data-soon="' + esc(o.action.text) + '">' + esc(o.action.text) + '</button>';
+          action = '<button class="' + btn + '" data-soon="' + esc(o.action.text) + '">' + esc(o.action.text) + '</button>';
         }
       }
-      return '<div class="empty">' +
+      /* o.round — значок в круге, как на утверждённых рисунках кабинета врача.
+         Вариант общего блока, а не копия его правил у экрана: круг просят уже
+         два экрана, и второй раз он был бы скопирован пипеткой. */
+      return '<div class="empty' + (o.round ? ' empty--round' : '') + '">' +
         '<div class="empty__icon">' + icon(o.icon || 'calendar-check', 'ic--xl') + '</div>' +
         '<p class="empty__title">' + esc(o.title || o.text || '') + '</p>' +
         (o.title && o.text ? '<p class="empty__text">' + esc(o.text) + '</p>' : '') +
@@ -842,6 +972,504 @@
       cancelBox = null;
       cancelId = null;
       return id;
+    },
+
+    /* --- Направление партнёра: общие блоки --------------------------------
+       Владелец блоков — экран «Мои направления». Главная врача, табло клиники
+       и реестр партнёров зовут их отсюда и своих копий не заводят: две копии
+       лестницы расходятся на первой же правке, и статус в списке начинает
+       противоречить статусу в раскрытой карточке.
+
+       Перечень статусов принадлежит клинике: подписи приходят из
+       DATA.statuses(), здесь только тон плашки. Седьмого статуса нет и не
+       заводится — у незнакомого id тон спокойный, а подпись остаётся его
+       собственной, выдуманного названия блок не подставляет. */
+
+    /** Подпись статуса словами клиники. Своих названий блоки не сочиняют. */
+    referralStatusTitle: function (id) {
+      var t = String(id === null || id === undefined ? '' : id);
+      ladder().forEach(function (s) { if (s.id === id) { t = s.title; } });
+      return t;
+    },
+
+    /** Плашка статуса. Принимает id статуса или само направление. */
+    referralBadge: function (r) {
+      var id = (r && r.status) ? r.status : r;
+      return badge(Render.referralStatusTitle(id), REFERRAL_TONE[id] || 'quiet');
+    },
+
+    /** Подпись, без которой начисление не выходит на экран. Слова клиники,
+        а не наши: они приходят из шва вместе с суммой. */
+    referralBonusNote: function (r) {
+      if (r && r.bonusNote) { return r.bonusNote; }
+      var b = (w.DATA && w.DATA.bonuses) ? w.DATA.bonuses() : null;
+      return (b && b.note) ? b.note : '';
+    },
+
+    /** Имя врача, направившего пациента. R29i: партнёр везде назван по имени,
+        а не обезличенным «партнёром» — треть пациентов идёт на фамилию врача,
+        и в карточке она обязана стоять. Реестр партнёров открыт только панели
+        клиники, поэтому в кабинете имя берётся у его хозяина. */
+    referralPartnerName: function (r) {
+      if (!r) { return ''; }
+      var name = '';
+      ((w.DATA && w.DATA.partners) ? w.DATA.partners() : []).forEach(function (p) {
+        if (p.id === r.partnerId) { name = p.name; }
+      });
+      if (name) { return name; }
+      var me = (w.DATA && w.DATA.partner) ? w.DATA.partner() : null;
+      return (me && me.id === r.partnerId) ? me.name : '';
+    },
+
+    /** Начисление вместе с подписью: число без неё наружу не идёт. Правило
+        начисления клиника пока не давала: ставку назначил владелец на время
+        показа, и голая сумма читается как согласованная клиникой. Пусто, пока
+        начисления нет. */
+    referralBonus: function (r) {
+      if (!r || r.bonus === null || r.bonus === undefined) { return ''; }
+      var note = Render.referralBonusNote(r);
+      if (!note) { return '<span class="muted">[уточняется]</span>'; }
+      return '<span class="ref-bonus">' + esc(Fmt.money(r.bonus)) +
+        '<span class="ref-bonus__note muted">' + esc(note) + '</span></span>';
+    },
+
+    /** Колонка «начислено» для таблицы: короткая форма числа и её сноска
+        выходят ОДНИМ вызовом и порознь не выдаются. Подпись рядом с числом
+        в ячейку не встаёт, поэтому она уходит сноской под таблицу, — а
+        сноска, оставленная вторым вызовом на совести зовущего, рано или
+        поздно не будет вызвана, и сумма выйдет голой.
+        Возвращает {cell(направление), footnote}: cell — ячейка, footnote —
+        строка под таблицу, пустая, когда в выборке нет ни одного начисления
+        или когда клиника не дала подписи. */
+    referralBonusColumn: function (list, o) {
+      o = o || {};
+      var note = Render.referralBonusNote(null);
+      var paying = (list || []).filter(function (r) {
+        return r && r.bonus !== null && r.bonus !== undefined;
+      }).length > 0;
+      return {
+        cell: function (r) {
+          if (!r || r.bonus === null || r.bonus === undefined) { return ''; }
+          if (!note) { return '<span class="muted">[уточняется]</span>'; }
+          return '<span class="nowrap">' + esc(Fmt.money(r.bonus)) +
+            '<span class="ref-mark">*</span></span>';
+        },
+        /* o.bar — та же сноска полосой-пояснением под карточкой таблицы
+           (приём 2). Рисунок ставит подпись к ставке именно так: она про весь
+           список, а не про последнюю строку, и внутри карточки читалась как
+           хвост таблицы. Форма — здесь, чтобы табло и реестр не собирали её
+           заново; условие «есть числа — есть подпись» остаётся одним. */
+        footnote: (paying && note)
+          ? (o.bar
+              ? Render.hintBar({ icon: 'message', cls: o.barCls, text: '* ' + note })
+              : '<p class="ref-note">* ' + esc(note) + '</p>')
+          : ''
+      };
+    },
+
+    /** Лестница статусов с датами: путь пациента по шагам. Пройденные ступени
+        с числами, непройденные — серые и без обещаний. Закрывающий исход
+        («не дошёл», «отменено») обрывает лестницу и встаёт последней ступенью:
+        дальше пациент не пошёл, и рисовать ему будущее нельзя. */
+    referralLadder: function (r, o) {
+      if (!r) { return ''; }
+      o = o || {};
+      /* o.row — лестница в ряд пилюлями, как на утверждённом рисунке. Ряд
+         помещается в одну строку и роняет высоту раскрытия вдвое; столбик
+         остаётся для узких мест, где ряд встал бы лесенкой из четырёх строк.
+         В ряду подпись короче: дата без «сколько дней назад» — сама фраза
+         вдвое длиннее ступени, на которой стоит. */
+      var row = !!o.row;
+      var done = {}, stop = null;
+      var stepIds = ladderSteps().map(function (s) { return s.id; });
+      (r.steps || []).forEach(function (s) {
+        if (stepIds.indexOf(s.id) < 0) { stop = s; } else { done[s.id] = s.at; }
+      });
+      var items = ladderSteps().map(function (s) {
+        var at = done[s.id];
+        if (!at && stop) { return ''; }
+        var when = at
+          ? (row ? Fmt.exact(at) : Fmt.exact(at) + ' · ' + Fmt.relative(at))
+          : (row ? '—' : 'ещё не наступило');
+        return step(at ? 'is-done' : 'is-off', at ? 'check' : 'clock', s.title, when);
+      }).join('');
+      if (stop) {
+        items += step('is-stop', 'close', Render.referralStatusTitle(stop.id),
+          stop.at ? (row ? Fmt.exact(stop.at) : Fmt.exact(stop.at) + ' · ' + Fmt.relative(stop.at)) : '');
+      }
+      return '<ol class="ladder' + (row ? ' ladder--row' : '') + '">' + items + '</ol>';
+    },
+
+    /** Карточка направления целиком: кто и на что направлен, лестница с
+        датами, комментарий врача, комментарии клиники и журнал действий.
+        o.log — журнал (по умолчанию DATA.actionLog); o.foot — кнопки того
+        экрана, который карточку открыл: своих действий блок не заводит. */
+    referralCard: function (r, o) {
+      if (!r) { return ''; }
+      o = o || {};
+      var wide = !!o.wide;
+      var log = o.log || ((w.DATA && w.DATA.actionLog) ? w.DATA.actionLog(r.id) : []);
+      var bonus = Render.referralBonus(r);
+      /* Кто смотрит. В своём кабинете врач — автор направления, и «Направил:
+         я» занимает зону ради строки, которую читатель и так знает; на табло
+         клиники это первое, что администратор ищет. Одна развилка на обе
+         подписи — та же, что у комментария ниже. */
+      var own = w.Store && w.Store.role && w.Store.role() === 'vrach' &&
+        w.DATA && w.DATA.partner && w.DATA.partner().id === r.partnerId;
+      var head = '<div class="ref-card__head">' +
+        '<div class="ref-card__who">' +
+          '<p class="label">Направление ' + esc(r.number) + '</p>' +
+          '<p class="ref-card__name">' + esc(r.patientName) + '</p>' +
+          '<p class="muted">' + esc(r.patientPhone) +
+            (r.patientAge ? ' · ' + esc(Fmt.years(r.patientAge)) : '') + '</p>' +
+        '</div>' +
+        (wide
+          ? '<div class="ref-card__state">' + Render.referralBadge(r) +
+              '<span class="muted">обновлено ' + esc(Fmt.exact(r.updatedAt || r.createdAt)) + '</span></div>'
+          : Render.referralBadge(r)) + '</div>';
+
+      var facts = wide ? wideFacts(r, bonus, own) : '<div class="ref-facts">' +
+        fact('Услуга', esc(r.serviceTitle)) +
+        fact('Клиника', esc(r.clinicCity)) +
+        (own ? '' : fact('Направил', esc(Render.referralPartnerName(r)) ||
+          '<span class="muted">[уточняется]</span>')) +
+        fact('Направлен', esc(Fmt.exact(r.createdAt))) +
+        fact('Сумма услуги', r.amount
+          ? esc(Fmt.money(r.amount))
+          : '<span class="muted">появится, когда услуга оказана</span>') +
+        fact('Начислено', bonus ||
+          '<span class="muted">появится, когда клиника рассчитает бонус</span>') +
+      '</div>';
+
+      var stuck = r.stuck
+        ? '<div class="notice notice--danger"><p class="notice__title strong">Требует внимания</p>' +
+          '<p>' + esc(r.stuck) + '</p></div>'
+        : '';
+
+      /* Подпись зависит от того, кто смотрит. В кабинете врача карточку
+         открывает автор комментария, в панели клиники — администратор, и
+         «Мой комментарий» на его экране называет чужие слова своими.
+         Роль берётся из сценария, а не приходит от зовущего: две подписи
+         на два экрана — это одна развилка, а не две копии блока. */
+      var who = Render.referralPartnerName(r);
+      var mine = r.comment
+        ? block(own ? 'Мой комментарий при направлении'
+                    : (who ? 'Комментарий врача: ' + who : 'Комментарий врача при направлении'),
+                '<p>' + esc(r.comment) + '</p>')
+        : '';
+
+      var theirs = (r.clinicComments && r.clinicComments.length)
+        ? block('Комментарии клиники', '<ul class="ref-notes">' +
+            r.clinicComments.map(function (c) {
+              return '<li>' + esc(c) + '</li>';
+            }).join('') + '</ul>')
+        : block('Комментарии клиники', '<p class="muted">Клиника пока ничего не написала.</p>');
+
+      var journal = block('Журнал действий', log.length
+        ? '<ul class="ref-log">' + log.map(function (e) {
+            return '<li class="ref-log__item">' +
+              '<span class="ref-log__when">' + esc(logWhen(e.at)) + '</span>' +
+              '<span class="ref-log__who muted">' + esc(e.who) + '</span>' +
+              '<span class="ref-log__what">' + esc(e.what) + '</span></li>';
+          }).join('') + '</ul>'
+        : '<p class="muted">Записей пока нет.</p>');
+
+      var foot = o.foot ? '<div class="ref-card__foot">' + o.foot + '</div>' : '';
+      if (!wide) {
+        return '<article class="card ref-card">' + head + facts + stuck +
+          block('Путь пациента', Render.referralLadder(r)) +
+          mine + theirs + journal + foot + '</article>';
+      }
+      /* Широкая раскладка с утверждённого рисунка. Лестница ложится в ряд,
+         а комментарии и журнал встают колонками рядом: столбиком те же данные
+         занимали 847 px высоты, список уезжал за нижний край экрана, и
+         раскрытие переставало показывать то, ради чего его открыли. */
+      return '<div class="ref-card ref-card--wide">' + head + stuck +
+        '<div class="card ref-card__facts">' + facts + '</div>' +
+        '<section class="ref-card__way">' +
+          Render.sectionHead({ title: 'Путь пациента', aside: wayAside(r) }) +
+          Render.referralLadder(r, { row: true }) +
+        '</section>' +
+        '<div class="ref-card__cols">' +
+          '<div class="card ref-card__col">' + (mine || '') + theirs + '</div>' +
+          '<div class="card ref-card__col">' + journal + '</div>' +
+        '</div>' + foot + '</div>';
+    },
+
+    /* --- Приёмы композиции с утверждённых рисунков --------------------------
+       Четыре приёма сняты с двух отрисованных экранов панели клиники —
+       «На модерации» и карточки партнёра. Пока они жили разметкой одной
+       страницы, каждый следующий экран собирал их заново и расходился с
+       соседом в мелочах: так уже разъезжалась плашка статуса. Здесь они
+       названы и обобщены, оформление — в styles.css рядом с остальными
+       общими блоками, а не вживляется скриптом.
+
+       Что приём НЕ берёт на себя: ширины колонок конкретной карточки. Приём —
+       это зоны, волосяные линии между ними и поле внутри каждой; сколько
+       пикселей отдано какой зоне, решает композиция экрана и объявляет своим
+       классом у себя. Иначе общий блок пришлось бы учить всем композициям
+       сразу или гнать числа из скрипта инлайновым стилем. */
+
+    /** Приём 1. Заголовок секции: прописная подпись, линейка на всю
+        оставшуюся ширину, справа счётчик или пояснение.
+        sectionHead({title, aside}) → разметка заголовка без обёртки секции.
+        Зовите его, когда секция уже есть; целую секцию собирает
+        Render.section, и своей копии заголовка он не держит. */
+    sectionHead: function (o) {
+      o = o || {};
+      return '<div class="section__head"><h2 class="label">' + esc(o.title) + '</h2>' +
+        (o.aside ? '<span class="section__aside">' + esc(o.aside) + '</span>' : '') + '</div>';
+    },
+
+    /** Приём 2. Полоса-пояснение: серая полоса со значком слева и текстом
+        в одну-три строки. Несёт оговорку или диагноз — «правило начисления
+        [уточняется]», «четверо ждут записи в клинике — это наша сторона».
+        hintBar({text, icon, cls}) → разметка полосы.
+        Текст экранируется: полоса рассказывает про данные, а не размечает их. */
+    hintBar: function (o) {
+      o = o || {};
+      /* html — для оговорки, внутри которой стоит адрес: ему нужно место
+         переноса после «@», а esc() его вырезал бы вместе с разметкой. Текст
+         в html обязан приходить уже пропущенным через esc или soft: блок
+         его не экранирует. Обычный путь — text, и он экранируется. */
+      return '<p class="hint-bar' + (o.cls ? ' ' + esc(o.cls) : '') + '">' +
+        '<span class="hint-bar__ic">' + icon(o.icon || 'message') + '</span>' +
+        '<span class="hint-bar__text">' + (o.html || esc(o.text || '')) + '</span></p>';
+    },
+
+    /** Приём 3. Карточка на зоны: горизонтальные зоны неравной ширины,
+        разделённые волосяными линиями, у каждой своё внутреннее поле.
+        zoneCard({zones: [{body, cls}], cls, id, tag}) → разметка карточки.
+
+        Ширины зон приём не назначает — их даёт класс композиции, который
+        экран передаёт в `cls` и объявляет у себя (у заявки на модерации это
+        280 / резина / 300 с рисунка). Общее здесь — сетка, линии, поля и
+        сворачивание в один столбец на узком экране; всё это в styles.css. */
+    zoneCard: function (o) {
+      o = o || {};
+      var tag = o.tag || 'article';
+      var cells = (o.zones || []).map(function (z) {
+        z = z || {};
+        return '<div class="zones__cell' + (z.cls ? ' ' + esc(z.cls) : '') + '">' +
+          (z.body || '') + '</div>';
+      }).join('');
+      return '<' + tag + ' class="card zones' + (o.cls ? ' ' + esc(o.cls) : '') + '"' +
+        (o.id ? ' data-id="' + esc(o.id) + '"' : '') + '>' + cells + '</' + tag + '>';
+    },
+
+    /** Приём 4. Крупный якорь: display-число с прописной подписью над ним и
+        тихой строкой под ним — «ЖДЁТ ОТВЕТА / 5 дней / Заявка от 29.08.2026».
+        anchor({label, value, note, cls}) → разметка якоря.
+        Число здесь самое крупное на карточке: по нему её и читают. Пустая
+        строка снизу узла не заводит. */
+    anchor: function (o) {
+      o = o || {};
+      return '<div class="anchor' + (o.cls ? ' ' + esc(o.cls) : '') + '">' +
+        (o.label ? '<span class="label">' + esc(o.label) + '</span>' : '') +
+        '<span class="anchor__value">' + esc(o.value) + '</span>' +
+        (o.note ? '<span class="anchor__note">' + esc(o.note) + '</span>' : '') + '</div>';
+    },
+
+    /* --- Приёмы, снятые с рисунка «Мои направления» -------------------------
+       Экран рисовали заново после того, как собранный из компонентов вариант
+       забраковали: дизайн-система давала детали, а композицию — нет. Три
+       приёма ниже и есть та композиция. Табло заявок и реестр партнёров
+       устроены так же и берут их отсюда: своей ленты и своей таблицы
+       на зонах у них быть не должно. */
+
+    /** Приём 5. Лента отбора со счётчиками. Первичная ось отбора стоит
+        лентой, а не выпадающим списком: список прячет раскладку потока, и
+        врач узнаёт, что четверо ждут записи, только открыв его.
+
+        tallyRibbon({items, active, act, label}) → разметка ленты.
+        item = {id, title, count, tone}; tone красит точку слева
+        ('quiet' | 'warn' | 'ok' | 'off'), у пункта без тона точки нет.
+        `active` — id выбранного; пустая строка выбирает пункт «все».
+        Экран обязан зарегистрировать `act`: Shell.on(act, fn), data-id
+        приходит идентификатором пункта.
+
+        Счётчик считает ВЕСЬ поток, а не пересечение с остальными органами
+        отбора: лента показывает раскладку, по которой выбирают, и число,
+        меняющееся от поиска, обнуляло бы весь её смысл. */
+    tallyRibbon: function (o) {
+      o = o || {};
+      var active = String(o.active === null || o.active === undefined ? '' : o.active);
+      var chips = (o.items || []).map(function (it) {
+        var on = String(it.id === null || it.id === undefined ? '' : it.id) === active;
+        /* 🔴 it.hold — пункт, повторный щелчок по которому ничего не меняет:
+           это «все», то есть снятый отбор. Нажатым он остаётся состоянием,
+           а не кнопкой. Кнопка, которая ничего не делает, — не мелочь вида:
+           прожимка прибора требует у каждого действия наблюдаемого следствия
+           и такую находит. */
+        var body =
+          (it.tone ? '<span class="tally__dot tally__dot--' + esc(it.tone) + '"></span>' : '') +
+          '<span class="tally__title">' + esc(it.title) + '</span>' +
+          '<span class="tally__count">' + esc(String(it.count)) + '</span>';
+        if (on && it.hold) {
+          return '<span class="tally__chip is-on" aria-current="true"' +
+            ' data-id="' + esc(it.id || '') + '">' + body + '</span>';
+        }
+        return '<button class="tally__chip' + (on ? ' is-on' : '') + '" type="button"' +
+          ' data-act="' + esc(o.act) + '" data-id="' + esc(it.id || '') + '"' +
+          ' aria-pressed="' + (on ? 'true' : 'false') + '">' + body + '</button>';
+      }).join('');
+      return '<div class="tally" role="group" aria-label="' +
+        esc(o.label || 'Отбор') + '">' + chips + '</div>';
+    },
+
+    /** Лента по лестнице статусов: пункт «все» плюс шесть ступеней клиники со
+        счётчиками. Названия и порядок — из DATA.statuses(), тон — тот же, что
+        у плашки, поэтому точка на ленте и плашка в строке не разойдутся.
+        referralTally({list, active, act}) → разметка ленты. */
+    referralTally: function (o) {
+      o = o || {};
+      var list = o.list || [];
+      var items = [{ id: '', title: 'Все', count: list.length, hold: true }];
+      ladder().forEach(function (s) {
+        var n = 0;
+        list.forEach(function (r) { if (r.status === s.id) { n++; } });
+        items.push({ id: s.id, title: s.title, count: n, tone: REFERRAL_TONE[s.id] || 'quiet' });
+      });
+      return Render.tallyRibbon({
+        items: items, active: o.active, act: o.act,
+        label: o.label || 'Отбор по статусу'
+      });
+    },
+
+    /** Приём 6. Таблица на зонах с раскрытием полосой внутри себя.
+
+        zoneTable({cls, cols, rows, toggle, foot}) → разметка таблицы.
+        cols  = [{title, cls, num}] — подписи зон; cls уходит на th и на td
+                того же места, num прижимает зону к правому краю.
+        rows  = [{id, cells: [разметка], open, band, label}] — cells по числу
+                зон; band — разметка полосы раскрытия под своей строкой.
+        toggle = имя действия для значка раскрытия; без него столбца нет.
+        foot  = {left, right} — низ таблицы.
+
+        🔴 Ширины зон приём не назначает: их даёт класс композиции экрана.
+        Сам он отвечает за два обещания. Первое — таблица не уезжает вбок:
+        table-layout: fixed, доли в процентах, и содержимое зоны переносится,
+        а не растягивает колонку. Семь колонок предыдущей сборки просили
+        1174 px там, где их было 1010, и таблица жила в своей прокрутке.
+        Второе — раскрытие живёт ВНУТРИ таблицы, полосой под своей строкой:
+        строка и её полоса лежат в одном tbody и держатся одной заливкой.
+        Карточка под всей таблицей теряла строку, от которой она. */
+    zoneTable: function (o) {
+      o = o || {};
+      var cols = o.cols || [];
+      var wide = cols.length + (o.toggle ? 1 : 0);
+      var head = cols.map(function (c) {
+        return '<th class="' + (c.cls ? esc(c.cls) : '') + (c.num ? ' num' : '') + '"' +
+          ' scope="col">' + esc(c.title) + '</th>';
+      }).join('') + (o.toggle
+        ? '<th class="ztable__toggle"><span class="visually-hidden">Раскрыть</span></th>' : '');
+
+      var body = (o.rows || []).map(function (r) {
+        var cells = (r.cells || []).map(function (html, i) {
+          var c = cols[i] || {};
+          return '<td class="' + (c.cls ? esc(c.cls) : '') + (c.num ? ' num' : '') + '">' +
+            html + '</td>';
+        }).join('');
+        if (o.toggle) {
+          cells += '<td class="ztable__toggle">' +
+            '<button class="ztable__mark" type="button" data-act="' + esc(o.toggle) + '"' +
+            ' data-id="' + esc(r.id) + '" aria-expanded="' + (r.open ? 'true' : 'false') + '">' +
+            '<span class="visually-hidden">' +
+              esc((r.open ? 'Свернуть: ' : 'Раскрыть: ') + (r.label || r.id)) + '</span>' +
+            icon('chevron', 'ic--sm') + '</button></td>';
+        }
+        return '<tbody class="ztable__band' + (r.open ? ' is-open' : '') + '"' +
+          ' data-id="' + esc(r.id) + '">' +
+          '<tr class="ztable__row">' + cells + '</tr>' +
+          (r.open && r.band
+            ? '<tr class="ztable__strip"><td colspan="' + wide + '">' + r.band + '</td></tr>'
+            : '') + '</tbody>';
+      }).join('');
+
+      var foot = o.foot
+        ? '<div class="ztable__foot">' +
+            '<span class="muted">' + (o.foot.left || '') + '</span>' +
+            (o.foot.right ? '<span class="ztable__foot-act">' + o.foot.right + '</span>' : '') +
+          '</div>'
+        : '';
+      return '<div class="card card--zones' + (o.cls ? ' ' + esc(o.cls) : '') + '">' +
+        '<table class="ztable"><thead><tr>' + head + '</tr></thead>' + body + '</table>' +
+        foot + '</div>';
+    },
+
+    /* --- Панель отбора ------------------------------------------------------
+       Владелец — табло клиники; реестр партнёров зовёт её отсюда и своей копии
+       не заводит. Панель рисует органы отбора и вешает на них слушателей —
+       и только. Значения она не помнит: где живёт отбор, решает экран (у табло
+       это Store, чтобы отбор пережил перезагрузку), и второй памяти о нём
+       быть не должно.
+
+       Компоненты общие: .search и .select из styles.css, те же, что в строке
+       отбора «Моих направлений». Раскладку даёт .filters — она в styles.css
+       рядом с ними, а не вживляется скриптом. */
+
+    /** Панель отбора одной строкой. Возвращает разметку.
+
+        o = {id, fields: [...], tail}
+        поле = {name, kind: 'search' | 'select', label, placeholder, icon,
+                value, all, options: [{value, title}], wide}
+
+        `label` обязателен: он же подпись для чтения с экрана. `all` — подпись
+        варианта «без отбора»; он всегда первый и всегда с пустым значением,
+        поэтому пустая строка и означает «фильтр снят». `tail` — то, что стоит
+        в конце строки (у табло это кнопка выгрузки). */
+    filterBar: function (o) {
+      o = o || {};
+      /* Поле с tail: true уезжает в конец строки к прочему хвосту. Так стоит
+         порядок сортировки на рисунке «Моих направлений»: поиск слева, а
+         порядок прижат к правому краю — он про вид списка, а не про отбор.
+         Разметку поля при этом собирает та же панель, а не экран своей
+         копией: копия разъезжается с оригиналом на первой правке. */
+      var tailed = [], main = [];
+      (o.fields || []).forEach(function (f) { (f && f.tail ? tailed : main).push(f); });
+      function draw(f) {
+        var name = esc(f.name);
+        var label = esc(f.label || f.name);
+        if (f.kind === 'search') {
+          return '<span class="search filters__search' + (f.wide ? ' filters__search--wide' : '') + '">' +
+            '<span class="search__ic">' + icon(f.icon || 'search', 'ic--sm') + '</span>' +
+            '<input class="search__input" type="text" data-filter="' + name + '"' +
+            ' aria-label="' + label + '" placeholder="' + esc(f.placeholder || f.label || '') + '"' +
+            ' value="' + esc(f.value || '') + '"></span>';
+        }
+        var picked = String(f.value === null || f.value === undefined ? '' : f.value);
+        var opts = (f.all ? '<option value=""' + (picked === '' ? ' selected' : '') + '>' +
+                            esc(f.all) + '</option>' : '') +
+          (f.options || []).map(function (op) {
+            return '<option value="' + esc(op.value) + '"' +
+              (String(op.value) === picked ? ' selected' : '') + '>' + esc(op.title) + '</option>';
+          }).join('');
+        return '<span class="select filters__select">' +
+          '<span class="select__ic">' + icon(f.icon || 'clipboard', 'ic--sm') + '</span>' +
+          '<select data-filter="' + name + '" aria-label="' + label + '">' + opts + '</select>' +
+          '<span class="select__chevron">' + icon('chevron', 'ic--sm') + '</span></span>';
+      }
+      var tail = (o.tail || '') + tailed.map(draw).join('');
+      return '<div class="filters"' + (o.id ? ' id="' + esc(o.id) + '"' : '') + '>' +
+        main.map(draw).join('') +
+        (tail ? '<span class="filters__tail">' + tail + '</span>' : '') + '</div>';
+    },
+
+    /** Повесить слушатели панели: поиск отзывается на ввод, выпадающие — на
+        выбор. fn(name, value, элемент) зовётся на каждое изменение.
+
+        Обработчик обязан перерисовывать СПИСОК, а не всю страницу: панель,
+        перерисованная на каждой букве, теряет фокус поля поиска — этот дефект
+        уже ловили на «Моих направлениях». */
+    filterBind: function (scope, fn) {
+      var root = typeof scope === 'string' ? document.querySelector(scope) : scope;
+      if (!root || !fn) { return; }
+      Array.prototype.forEach.call(root.querySelectorAll('[data-filter]'), function (el) {
+        var name = el.getAttribute('data-filter');
+        el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', function () {
+          fn(name, el.value, el);
+        });
+      });
     },
 
     /** Окно для действий, которых в прототипе нет (A02 → R05). */

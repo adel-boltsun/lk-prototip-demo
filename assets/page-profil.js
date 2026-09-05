@@ -172,7 +172,9 @@
     return '<div class="pr-field">' +
       '<span class="pr-field__label">' + esc(f.label) + '</span>' +
       '<span class="pr-field__value pr-field__value--text">' +
-        (v ? esc(f.id === 'birthDate' ? dateYear(v) + ' · ' + fmt.years(fmt.age(v)) : v)
+        (v ? (f.id === 'birthDate'
+                ? esc(dateYear(v) + ' · ' + fmt.years(fmt.age(v)))
+                : w.Render.soft(v))
            : '<span class="muted">не указано</span>') +
       '</span>' +
     '</div>';
@@ -340,7 +342,7 @@
       return '<div class="pr-consent" data-channel="' + esc(c.id) + '">' +
         '<div class="pr-consent__body">' +
           '<p class="row__title">' + esc(meta.title) + '</p>' +
-          '<p class="muted">' + esc(addr) + '</p>' +
+          '<p class="muted">' + w.Render.soft(addr) + '</p>' +
         '</div>' +
         switchCell(c.enabled, 'notify', c.id, false, meta.title, off) +
       '</div>';
